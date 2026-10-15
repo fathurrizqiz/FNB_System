@@ -1,6 +1,7 @@
-import { Head } from "@inertiajs/react";
+import { Head, Link, router } from "@inertiajs/react";
 import { useMemo } from "react";
-// import { destroy } from "@/routes/admin/order";
+import { destroy, update } from "@/routes/admin/orders";
+import { index as adminMenuIndex } from "@/routes/admin/menu";
 
 /* ---------------- types ---------------- */
 interface OrderMenu {
@@ -9,6 +10,11 @@ interface OrderMenu {
     quantity: number;
     status: string;
     whatsapp_number: string | null;
+    customer_name: string | null;
+    delivery_method: string | null;
+    notes: string | null;
+    unit_price: number | string | null;
+    order_number: string | null;
     created_at: string;
     updated_at: string;
 }
@@ -62,7 +68,7 @@ export default function OrderIndex({ order, flash }: PageProps) {
     const stats = useMemo(() => {
         const totalItems = order.reduce((s, o) => s + o.quantity, 0);
         const totalRevenue = order.reduce(
-            (s, o) => s + o.quantity * Number(o.menu.price),
+            (s, o) => s + o.quantity * Number(o.unit_price ?? o.menu.price),
             0,
         );
         const uniqueMenu = new Set(order.map((o) => o.menu_id)).size;
@@ -87,25 +93,35 @@ export default function OrderIndex({ order, flash }: PageProps) {
                 ...g,
                 totalQty: g.lines.reduce((s, l) => s + l.quantity, 0),
                 totalPrice: g.lines.reduce(
-                    (s, l) => s + l.quantity * Number(l.menu.price),
+                    (s, l) =>
+                        s + l.quantity * Number(l.unit_price ?? l.menu.price),
                     0,
                 ),
             }))
             .sort((a, b) => b.totalQty - a.totalQty);
     }, [order]);
 
-    /* ---------- delete ---------- */
-    // const handleDelete = (id: number, menuName: string) => {
-    //     if (
-    //         !confirm(
-    //             `Hapus order untuk "${menuName}"? Tindakan ini tidak bisa dibatalkan.`,
-    //         )
-    //     ) {
-    //         return;
-    //     }
+    const pendingCount = new Set(
+        order
+            .filter((line) => line.status === "pending")
+            .map((line) => line.order_number ?? String(line.id)),
+    ).size;
 
-    //     router.delete(destroy.url(id), { preserveScroll: true });
-    // };
+    const changeStatus = (id: number, status: string) => {
+        router.patch(
+            update.url(id),
+            { status },
+            { preserveScroll: true },
+        );
+    };
+
+    const deleteOrder = (id: number, orderNumber: string | null) => {
+        if (!confirm(`Hapus pesanan ${orderNumber ?? `#${id}`}?`)) {
+            return;
+        }
+
+        router.delete(destroy.url(id), { preserveScroll: true });
+    };
 
     return (
         <>
@@ -182,10 +198,22 @@ export default function OrderIndex({ order, flash }: PageProps) {
                         </h1>
 
                         <p className="mt-6 max-w-md text-sm leading-relaxed text-[#171310]/60">
-                            Semua order yang masuk dari pelanggan. Kelola
-                            kuantitas dan pantau pendapatan dari sini.
+                            Periksa pesanan masuk, hubungi pelanggan, lalu
+                            konfirmasi atau tolak pesanan.
                         </p>
                     </header>
+
+                    <div className="mb-8 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-[#171310]/10 bg-[#F7E7CE]/50 px-5 py-4">
+                        <p className="text-sm text-[#171310]/70">
+                            {pendingCount} pesanan menunggu konfirmasi
+                        </p>
+                        <Link
+                            href={adminMenuIndex.url()}
+                            className="text-xs font-semibold uppercase tracking-widest text-[#064E3B] underline underline-offset-4"
+                        >
+                            Kelola katalog menu
+                        </Link>
+                    </div>
 
                     {/* STATS STRIP */}
                     <div className="mb-14 grid grid-cols-2 gap-6 border-b border-[#171310]/10 pb-8 md:grid-cols-4 md:gap-12">
@@ -241,7 +269,7 @@ export default function OrderIndex({ order, flash }: PageProps) {
                                     Subtotal
                                 </div>
                                 <div className="col-span-1 text-right">
-                                    Status
+                                    Kelola
                                 </div>
                             </div>
 
@@ -251,6 +279,8 @@ export default function OrderIndex({ order, flash }: PageProps) {
                                     key={group.menu.id}
                                     group={group}
                                     groupIndex={gi}
+                                    onStatusChange={changeStatus}
+                                    onDelete={deleteOrder}
                                 />
                             ))}
                         </div>
@@ -267,6 +297,7 @@ export default function OrderIndex({ order, flash }: PageProps) {
 function GroupBlock({
     group,
     groupIndex,
+    onStatusChange,
     onDelete,
 }: {
     group: {
@@ -276,6 +307,8 @@ function GroupBlock({
         totalPrice: number;
     };
     groupIndex: number;
+    onStatusChange: (id: number, status: string) => void;
+    onDelete: (id: number, orderNumber: string | null) => void;
 }) {
     return (
         <div
@@ -339,11 +372,36 @@ function GroupBlock({
                         {/* order meta */}
                         <div className="col-span-12 md:col-span-5">
                             <p className="text-xs uppercase tracking-widest text-[#171310]/40">
-                                Order #{String(line.id).padStart(4, "0")}
+                                {line.order_number ?? `Order #${String(line.id).padStart(4, "0")}`}
                             </p>
+                            {line.customer_name && (
+                                <p className="mt-1 font-medium text-[#171310]">
+                                    {line.customer_name}
+                                </p>
+                            )}
                             <p className="mt-0.5 text-xs text-[#171310]/50">
                                 {formatDate(line.created_at)}
                             </p>
+                            {line.whatsapp_number && (
+                                <a
+                                    href={`https://wa.me/${line.whatsapp_number.replace(/\D/g, "")}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="mt-1 inline-block text-xs text-[#064E3B] underline"
+                                >
+                                    WhatsApp: {line.whatsapp_number}
+                                </a>
+                            )}
+                            {line.delivery_method && (
+                                <p className="mt-1 text-xs text-[#171310]/60">
+                                    {line.delivery_method}
+                                </p>
+                            )}
+                            {line.notes && (
+                                <p className="mt-1 text-xs text-[#171310]/60">
+                                    Catatan: {line.notes}
+                                </p>
+                            )}
                         </div>
 
                         {/* qty */}
@@ -362,7 +420,7 @@ function GroupBlock({
                                 Harga
                             </span>
                             <span className="hidden text-xs text-[#171310]/60 md:inline">
-                                {rupiah(line.menu.price)}
+                                {rupiah(line.unit_price ?? line.menu.price)}
                             </span>
                         </div>
 
@@ -373,20 +431,38 @@ function GroupBlock({
                             </span>
                             <span className="font-serif text-base md:text-lg">
                                 {rupiah(
-                                    line.quantity * Number(line.menu.price),
+                                    line.quantity * Number(line.unit_price ?? line.menu.price),
                                 )}
                             </span>
                         </div>
-                        <div className="col-span-12 mt-2 text-xs text-[#171310]/50 md:hidden">
+                        <div className="col-span-12 mt-2 text-xs text-[#171310]/50 md:col-span-1 md:mt-0">
                             <span className="mr-2 uppercase tracking-widest">
                                 Status
                             </span>
-                            <StatusBadge status={line.status} />
+                            <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                                <StatusBadge status={line.status} />
+                                <select
+                                    aria-label={`Ubah status ${line.order_number ?? line.id}`}
+                                    value={line.status}
+                                    onChange={(event) =>
+                                        onStatusChange(line.id, event.target.value)
+                                    }
+                                    className="rounded-md border border-[#171310]/20 bg-white px-2 py-1 text-xs"
+                                >
+                                    <option value="pending">Menunggu</option>
+                                    <option value="confirmed">Dikonfirmasi</option>
+                                    <option value="rejected">Ditolak</option>
+                                </select>
+                                <button
+                                    type="button"
+                                    onClick={() => onDelete(line.id, line.order_number)}
+                                    className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700"
+                                >
+                                    Hapus
+                                </button>
+                            </div>
                         </div>
 
-                        <div className="col-span-1 hidden text-right md:block">
-                            <StatusBadge status={line.status} />
-                        </div>
                     </div>
                 ))}
             </div>
@@ -394,12 +470,17 @@ function GroupBlock({
     );
 }
 
-function StatusBadge({ status }: { status: string | null }): JSX.Element {
+function StatusBadge({ status }: { status: string | null }) {
     const normalizedStatus = status || "pending";
+    const labels: Record<string, string> = {
+        pending: "Menunggu",
+        confirmed: "Dikonfirmasi",
+        rejected: "Ditolak",
+    };
 
     return (
         <span className="inline-flex rounded-full bg-[#064E3B]/10 px-2.5 py-1 text-[10px] font-medium uppercase tracking-widest text-[#064E3B]">
-            {normalizedStatus}
+            {labels[normalizedStatus] ?? normalizedStatus}
         </span>
     );
 }

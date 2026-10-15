@@ -141,3 +141,39 @@
         @apply bg-background text-foreground;
     }
 }
+
+body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background-color: #f7f3ec;
+    color: #23150e;
+}
+
+.font-editorial {
+    font-family: 'Playfair Display', serif;
+}
+
+.bg-paper {
+    background-color: #f7f3ec;
+    background-image:
+        radial-gradient(#23150e 0.5px, transparent 0.5px),
+        radial-gradient(#23150e 0.5px, #f7f3ec 0.5px);
+    background-size: 20px 20px;
+    background-position: 0 0, 10px 10px;
+}
+
+.craft-shadow {
+    box-shadow: 6px 8px 0px 0px #23150e;
+}
+.craft-shadow-sm {
+    box-shadow: 3px 4px 0px 0px #23150e;
+}
+.craft-shadow-gold {
+    box-shadow: 6px 8px 0px 0px #f4be38;
+}
+
+.tilt-hover {
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.tilt-hover:hover {
+    transform: translateY(-5px) rotate(0deg) scale(1.01);
+}

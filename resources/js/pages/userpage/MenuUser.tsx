@@ -2,6 +2,7 @@ import { Input } from "@/components/ui/input";
 import { Head, router } from "@inertiajs/react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { order as createOrder } from "@/routes/menu";
 
 /* ---------------- types ---------------- */
 interface MenuItem {
@@ -32,8 +33,12 @@ export default function MenuPage({ menu }: PageProps) {
     const [cartOpen, setCartOpen] = useState(false);
     const [activeCat, setActiveCat] = useState<string>("Semua");
     const [justAdded, setJustAdded] = useState<number | null>(null);
+    const [customerName, setCustomerName] = useState("");
     const [whatsappNumber, setWhatsappNumber] = useState("");
-    const [status, setStatus] = useState("");
+    const [deliveryMethod, setDeliveryMethod] = useState(
+        "Takeaway / Ambil Sendiri",
+    );
+    const [notes, setNotes] = useState("");
 
     useEffect(() => {
         try {
@@ -92,7 +97,9 @@ export default function MenuPage({ menu }: PageProps) {
 
     const increment = (id: number) =>
         setCart((prev) =>
-            prev.map((x) => (x.id === id ? { ...x, qty: x.qty + 1 } : x)),
+            prev.map((x) =>
+                x.id === id ? { ...x, qty: Math.min(100, x.qty + 1) } : x,
+            ),
         );
 
     const removeLine = (id: number) =>
@@ -101,23 +108,59 @@ export default function MenuPage({ menu }: PageProps) {
     const clearCart = () => setCart([]);
 
     const checkout = () => {
+        const whatsappWindow = window.open("about:blank", "_blank");
+
         router.post(
-            "/menu/order",
+            createOrder.url(),
             {
+                customer_name: customerName,
+                whatsapp_number: whatsappNumber,
+                delivery_method: deliveryMethod,
+                notes,
                 items: cart.map((line) => ({
                     menu_id: line.id,
                     quantity: line.qty,
-                    whatsapp_number: whatsappNumber || null,
-                    status: "pending",
                 })),
             },
             {
-                onSuccess: () => {
+                onSuccess: (page) => {
+                    const flash = page.props.flash;
+                    const whatsappUrl =
+                        flash &&
+                        typeof flash === "object" &&
+                        "whatsappUrl" in flash &&
+                        typeof flash.whatsappUrl === "string"
+                            ? flash.whatsappUrl
+                            : null;
+
+                    if (!whatsappUrl) {
+                        whatsappWindow?.close();
+                        toast.error(
+                            "Pesanan tersimpan, tetapi tautan WhatsApp tidak tersedia.",
+                        );
+                        return;
+                    }
+
+                    if (whatsappWindow) {
+                        whatsappWindow.location.href = whatsappUrl;
+                        whatsappWindow.opener = null;
+                    } else {
+                        window.location.assign(whatsappUrl);
+                    }
+
                     clearCart();
+                    setCustomerName("");
                     setWhatsappNumber("");
-                    setStatus("success");
+                    setNotes("");
                     setCartOpen(false);
-                    toast.success("Pesanan berhasil dikirim!");
+                    toast.success("Pesanan tersimpan. Silakan kirim WhatsApp.");
+                },
+                onError: (errors) => {
+                    whatsappWindow?.close();
+                    toast.error(
+                        Object.values(errors)[0] ??
+                            "Pesanan belum dapat disimpan. Periksa kembali data pesanan.",
+                    );
                 },
             },
         );
@@ -238,6 +281,12 @@ export default function MenuPage({ menu }: PageProps) {
                     onCheckout={checkout}
                     whatsappNumber={whatsappNumber}
                     onWhatsappNumberChange={setWhatsappNumber}
+                    customerName={customerName}
+                    onCustomerNameChange={setCustomerName}
+                    deliveryMethod={deliveryMethod}
+                    onDeliveryMethodChange={setDeliveryMethod}
+                    notes={notes}
+                    onNotesChange={setNotes}
                 />
             </div>
 
@@ -452,8 +501,14 @@ function CartDrawer({
     onRemove,
     onClear,
     onCheckout,
+    customerName,
+    onCustomerNameChange,
     whatsappNumber,
     onWhatsappNumberChange,
+    deliveryMethod,
+    onDeliveryMethodChange,
+    notes,
+    onNotesChange,
 }: {
     open: boolean;
     cart: CartLine[];
@@ -464,8 +519,14 @@ function CartDrawer({
     onRemove: (id: number) => void;
     onClear: () => void;
     onCheckout: () => void;
+    customerName: string;
+    onCustomerNameChange: (value: string) => void;
     whatsappNumber: string;
     onWhatsappNumberChange: (value: string) => void;
+    deliveryMethod: string;
+    onDeliveryMethodChange: (value: string) => void;
+    notes: string;
+    onNotesChange: (value: string) => void;
 }) {
     const count = cart.reduce((s, x) => s + x.qty, 0);
 
@@ -622,13 +683,28 @@ function CartDrawer({
                             </ul>
 
                             <div className="border-t border-[#064E3B]/10 px-6 py-4 text-xs text-[#064E3B]/50">
+                                <label htmlFor="customer_name">
+                                    Nama pemesan
+                                </label>
+                                <Input
+                                    id="customer_name"
+                                    type="text"
+                                    maxLength={120}
+                                    value={customerName}
+                                    onChange={(event) =>
+                                        onCustomerNameChange(event.target.value)
+                                    }
+                                    placeholder="Nama lengkap"
+                                    className="mt-1 mb-3 w-full rounded-md border border-[#064E3B]/20 bg-[#F7E7CE] px-3 py-2 text-sm text-[#064E3B] placeholder:text-[#064E3B]/40 focus:border-[#3F8E7C] focus:ring focus:ring-[#3F8E7C]/20"
+                                />
                                 <label htmlFor="whatsapp_number">
                                     Nomor WhatsApp
                                 </label>
                                 <Input
                                     id="whatsapp_number"
-                                    type="text"
+                                    type="tel"
                                     name="whatsapp_number"
+                                    maxLength={20}
                                     value={whatsappNumber}
                                     onChange={(event) =>
                                         onWhatsappNumberChange(
@@ -637,6 +713,37 @@ function CartDrawer({
                                     }
                                     placeholder="Masukkan nomor WhatsApp"
                                     className="mt-1 w-full rounded-md border border-[#064E3B]/20 bg-[#F7E7CE] px-3 py-2 text-sm text-[#064E3B] placeholder:text-[#064E3B]/40 focus:border-[#3F8E7C] focus:ring focus:ring-[#3F8E7C]/20"
+                                />
+                                <label htmlFor="delivery_method" className="mt-3 block">
+                                    Metode pengambilan
+                                </label>
+                                <select
+                                    id="delivery_method"
+                                    value={deliveryMethod}
+                                    onChange={(event) =>
+                                        onDeliveryMethodChange(event.target.value)
+                                    }
+                                    className="mt-1 w-full rounded-md border border-[#064E3B]/20 bg-[#F7E7CE] px-3 py-2 text-sm text-[#064E3B]"
+                                >
+                                    <option value="Takeaway / Ambil Sendiri">
+                                        Ambil di outlet
+                                    </option>
+                                    <option value="Delivery Ojol (Gojek/Grab)">
+                                        Kirim dengan ojol
+                                    </option>
+                                </select>
+                                <label htmlFor="order_notes" className="mt-3 block">
+                                    Catatan (opsional)
+                                </label>
+                                <textarea
+                                    id="order_notes"
+                                    maxLength={1000}
+                                    rows={2}
+                                    value={notes}
+                                    onChange={(event) =>
+                                        onNotesChange(event.target.value)
+                                    }
+                                    className="mt-1 w-full rounded-md border border-[#064E3B]/20 bg-[#F7E7CE] px-3 py-2 text-sm text-[#064E3B]"
                                 />
                             </div>
                             <button
@@ -682,6 +789,7 @@ function CartDrawer({
                         <button
                             onClick={onCheckout}
                             className="group relative w-full overflow-hidden rounded-full bg-[#064E3B] py-4 text-xs font-medium uppercase tracking-widest text-[#F7E7CE] transition-colors"
+                            disabled={!customerName.trim() || !whatsappNumber.trim()}
                         >
                             <span className="relative z-10">
                                 Lanjut ke checkout

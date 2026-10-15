@@ -1,899 +1,869 @@
-import { Head, Link } from '@inertiajs/react';
-import { useEffect, useRef, useState } from 'react';
+import { Head, Link, useForm } from '@inertiajs/react';
+import { useEffect, useState } from 'react';
+import { view as evaluasiPage } from '@/routes/evaluasi';
+import { order as createOrder } from '@/routes/menu';
 
-/* ---------------- data ---------------- */
-const NAV_LINKS = [
-    { label: 'Menu', href: '#menu' },
-    { label: 'Cerita', href: '#cerita' },
-    { label: 'Lokasi', href: '#lokasi' },
-];
-
-const SIGNATURE = [
-    {
-        no: '01',
-        name: 'Es Kopi Senja',
-        note: 'gula aren · susu segar · espresso',
-        price: '28K',
-        img: 'https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=800&q=80',
-    },
-    {
-        no: '02',
-        name: 'V60 Gayo',
-        note: 'manual brew · cokelat · jeruk',
-        price: '38K',
-        img: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=800&q=80',
-    },
-    {
-        no: '03',
-        name: 'Butter Croissant',
-        note: 'dipanggang setiap pagi',
-        price: '25K',
-        img: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=800&q=80',
-    },
-];
-
-const MENU = [
-    {
-        id: 1,
-        name: 'Es Kopi Senja',
-        desc: 'Espresso · susu segar · gula aren',
-        price: 28000,
-        cat: 'Kopi',
-        tag: 'Best Seller',
-        img: 'https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=600&q=80',
-    },
-    {
-        id: 2,
-        name: 'Flat White',
-        desc: 'Double ristretto · microfoam',
-        price: 32000,
-        cat: 'Kopi',
-        img: 'https://images.unsplash.com/photo-1512568400610-62da28bc8a13?w=600&q=80',
-    },
-    {
-        id: 3,
-        name: 'V60 Single Origin',
-        desc: 'Gayo · cokelat · jeruk',
-        price: 38000,
-        cat: 'Manual Brew',
-        tag: 'Baru',
-        img: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=600&q=80',
-    },
-    {
-        id: 4,
-        name: 'Cold Brew 12 Jam',
-        desc: 'Diseduh dingin · smooth',
-        price: 30000,
-        cat: 'Kopi',
-        img: 'https://images.unsplash.com/photo-1517701604599-bb29b565090c?w=600&q=80',
-    },
-    {
-        id: 5,
-        name: 'Matcha Latte',
-        desc: 'Uji matcha · oat milk',
-        price: 35000,
-        cat: 'Non-Kopi',
-        img: 'https://images.unsplash.com/photo-1536010305525-f7aa0834e2c7?w=600&q=80',
-    },
-    {
-        id: 6,
-        name: 'Butter Croissant',
-        desc: 'Dipanggang setiap pagi',
-        price: 25000,
-        cat: 'Pastry',
-        img: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=600&q=80',
-    },
-];
-
-const CATS = ['Semua', 'Kopi', 'Manual Brew', 'Non-Kopi', 'Pastry'];
-
-/* ---------------- helpers ---------------- */
-function useReveal(threshold = 0.15) {
-    const ref = useRef<HTMLDivElement>(null);
-    const [visible, setVisible] = useState(false);
-
-    useEffect(() => {
-        const el = ref.current;
-        if (!el) return;
-        const io = new IntersectionObserver(
-            ([e]) => {
-                if (e.isIntersecting) {
-                    setVisible(true);
-                    io.disconnect();
-                }
-            },
-            { threshold },
-        );
-        io.observe(el);
-        return () => io.disconnect();
-    }, [threshold]);
-
-    return [ref, visible] as const;
+/* ============================================================
+   TYPES
+============================================================ */
+interface MenuItem {
+    id: number;
+    name: string;
+    description: string | null;
+    price: number | string;
+    image: string | null;
 }
 
-function Reveal({
-    children,
-    delay = 0,
-    className = '',
-}: {
-    children: React.ReactNode;
-    delay?: number;
-    className?: string;
-}) {
-    const [ref, visible] = useReveal();
-    return (
-        <div
-            ref={ref}
-            className={className}
-            style={{
-                opacity: visible ? 1 : 0,
-                transform: visible ? 'translateY(0)' : 'translateY(28px)',
-                transition: `opacity .9s cubic-bezier(.16,1,.3,1) ${delay}s, transform .9s cubic-bezier(.16,1,.3,1) ${delay}s`,
-            }}
-        >
-            {children}
-        </div>
-    );
+interface Evaluation {
+    id: number;
+    name: string;
+    comment: string;
 }
 
-const rupiah = (n: number) => 'Rp ' + n.toLocaleString('id-ID');
+interface OrderForm {
+    customer_name: string;
+    whatsapp_number: string;
+    items: { menu_id: number; quantity: number }[];
+    delivery_method: string;
+    notes: string;
+}
 
-/* ---------------- page ---------------- */
-export default function LandingPage() {
+interface PageProps {
+    menuItems: MenuItem[];
+    comments: Evaluation[];
+}
+
+const SHOPEE_URL = 'https://shopee.co.id/product/646511096/54968378757/';
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+export default function LandingPage({ menuItems, comments }: PageProps) {
+    const [modalOpen, setModalOpen] = useState(false);
     const [scrolled, setScrolled] = useState(false);
-    const [cart, setCart] = useState<
-        { id: number; name: string; price: number; img: string; qty: number }[]
-    >([]);
-    const [cartOpen, setCartOpen] = useState(false);
-    const [cat, setCat] = useState('Semua');
-    const [hoveredSig, setHoveredSig] = useState<string | null>(null);
+    const form = useForm<OrderForm>({
+        customer_name: '',
+        whatsapp_number: '',
+        items: [{ menu_id: menuItems[0]?.id ?? 0, quantity: 1 }],
+        delivery_method: 'Takeaway / Ambil Sendiri',
+        notes: '',
+    });
 
+    /* scroll state */
     useEffect(() => {
-        const onScroll = () => setScrolled(window.scrollY > 24);
+        const onScroll = () => setScrolled(window.scrollY > 12);
         onScroll();
         window.addEventListener('scroll', onScroll, { passive: true });
         return () => window.removeEventListener('scroll', onScroll);
     }, []);
 
+    /* lock body scroll */
     useEffect(() => {
-        document.body.style.overflow = cartOpen ? 'hidden' : '';
+        document.body.style.overflow = modalOpen ? 'hidden' : '';
         return () => {
             document.body.style.overflow = '';
         };
-    }, [cartOpen]);
+    }, [modalOpen]);
 
-    const add = (item: (typeof MENU)[number]) =>
-        setCart((c) => {
-            const found = c.find((x) => x.id === item.id);
-            return found
-                ? c.map((x) =>
-                      x.id === item.id ? { ...x, qty: x.qty + 1 } : x,
-                  )
-                : [
-                      ...c,
-                      {
-                          id: item.id,
-                          name: item.name,
-                          price: item.price,
-                          img: item.img,
-                          qty: 1,
-                      },
-                  ];
+    /* computed */
+    const selectedMenuId = form.data.items[0]?.menu_id;
+    const selectedItem = menuItems.find((item) => item.id === selectedMenuId);
+    const quantity = form.data.items[0]?.quantity ?? 1;
+    const total = selectedItem ? Number(selectedItem.price) * quantity : 0;
+
+    /* handlers */
+    const openOrderModal = (presetId?: number) => {
+        if (menuItems.length === 0) {
+            return;
+        }
+
+        form.clearErrors();
+        form.setData('items', [
+            {
+                menu_id: presetId ?? selectedMenuId ?? menuItems[0].id,
+                quantity: 1,
+            },
+        ]);
+        setModalOpen(true);
+    };
+
+    const adjustQty = (delta: number) => {
+        if (selectedItem) {
+            form.setData('items', [
+                {
+                    menu_id: selectedItem.id,
+                    quantity: Math.min(100, Math.max(1, quantity + delta)),
+                },
+            ]);
+        }
+    };
+
+    const submitOrder = (e: React.FormEvent) => {
+        e.preventDefault();
+        const whatsappWindow = window.open('about:blank', '_blank');
+
+        form.post(createOrder.url(), {
+            preserveScroll: true,
+            onSuccess: (page) => {
+                const flash = page.props.flash;
+                const whatsappUrl =
+                    flash &&
+                    typeof flash === 'object' &&
+                    'whatsappUrl' in flash &&
+                    typeof flash.whatsappUrl === 'string'
+                        ? flash.whatsappUrl
+                        : null;
+
+                if (!whatsappUrl) {
+                    whatsappWindow?.close();
+                    window.alert(
+                        'Pesanan sudah tersimpan, tetapi tautan WhatsApp tidak tersedia. Silakan hubungi outlet secara manual.',
+                    );
+                    return;
+                }
+
+                if (whatsappWindow) {
+                    whatsappWindow.location.href = whatsappUrl;
+                    whatsappWindow.opener = null;
+                } else {
+                    window.location.assign(whatsappUrl);
+                }
+
+                form.reset('customer_name', 'whatsapp_number', 'notes');
+                setModalOpen(false);
+            },
+            onError: () => whatsappWindow?.close(),
         });
-
-    const remove = (id: number) =>
-        setCart((c) => c.filter((x) => x.id !== id));
-
-    const total = cart.reduce((s, x) => s + x.price * x.qty, 0);
-    const count = cart.reduce((s, x) => s + x.qty, 0);
-
-    const filtered =
-        cat === 'Semua' ? MENU : MENU.filter((m) => m.cat === cat);
+    };
 
     return (
         <>
-            <Head title="Senja — Kopi & Ruang" />
+            <Head title="Melted Banana — Kripik Pisang Coklat Lumer">
+                <meta
+                    name="description"
+                    content="Kelezatan pisang matang dipadu dark chocolate lumer."
+                />
+            </Head>
 
-            {/* grain overlay */}
-            <div
-                aria-hidden
-                className="pointer-events-none fixed inset-0 z-[100] opacity-[.05] mix-blend-multiply"
-                style={{
-                    backgroundImage:
-                        "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
-                }}
-            />
-
-            <div className="relative min-h-screen bg-cream font-sans text-ink selection:bg-terracotta selection:text-cream">
-                {/* ================= NAV ================= */}
+            <div className="min-h-screen bg-paper font-sans text-cacao-800 antialiased selection:bg-banana-400 selection:text-cacao-900">
+                {/* ================= HEADER ================= */}
                 <header
-                    className={`fixed left-0 right-0 top-0 z-50 transition-all duration-700 ${
+                    className={`sticky top-0 z-40 border-b-2 border-cacao-800 px-4 py-4 backdrop-blur-md transition-all duration-300 sm:px-8 ${
                         scrolled
-                            ? 'border-b border-ink/10 bg-cream/80 py-3 backdrop-blur-md'
-                            : 'bg-transparent py-6'
+                            ? 'bg-craft-light/95 shadow-[0_4px_0_0_rgba(35,21,14,0.08)]'
+                            : 'bg-craft-light/90'
                     }`}
                 >
-                    <div className="mx-auto flex items-center justify-between px-6 md:px-10">
-                        <Link
-                            href="/"
-                            className="font-display text-2xl tracking-tight"
-                        >
-                            Senja<span className="text-terracotta">.</span>
-                        </Link>
+                    <div className="mx-auto flex max-w-7xl items-center justify-between">
+                        <a href="#" className="group flex items-center gap-3">
+                            <div className="craft-shadow-sm flex h-11 w-11 items-center justify-center rounded-xl bg-cacao-800 font-editorial text-xl font-black text-banana-400 transition-all group-hover:bg-cacao-700">
+                                MB
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="font-editorial text-xl font-extrabold leading-none tracking-tight text-cacao-900">
+                                    MELTED BANANA
+                                </span>
+                                <span className="mt-0.5 text-[10px] font-bold uppercase tracking-widest text-cacao-600">
+                                    Kripik Pisang Coklat Lumer
+                                </span>
+                            </div>
+                        </a>
 
-                        <nav className="hidden items-center gap-10 md:flex">
-                            {NAV_LINKS.map((l) => (
-                                <a
-                                    key={l.href}
-                                    href={l.href}
-                                    className="group relative text-sm font-medium text-ink/70 transition hover:text-ink"
-                                >
-                                    {l.label}
-                                    <span className="absolute -bottom-1 left-0 h-px w-0 bg-ink transition-all duration-300 group-hover:w-full" />
-                                </a>
-                            ))}
+                        <nav className="hidden items-center gap-8 text-sm font-semibold text-cacao-800 md:flex">
+                            <a
+                                href="#cerita"
+                                className="transition-colors hover:text-banana-600"
+                            >
+                                Cerita Kami
+                            </a>
+                            <a
+                                href="#menu"
+                                className="transition-colors hover:text-banana-600"
+                            >
+                                Katalog Menu
+                            </a>
+                            <a
+                                href="#keunggulan"
+                                className="transition-colors hover:text-banana-600"
+                            >
+                                Kualitas
+                            </a>
+                            <a
+                                href="#testimoni"
+                                className="transition-colors hover:text-banana-600"
+                            >
+                                Ulasan Real
+                            </a>
                         </nav>
 
-                        <div className="flex items-center gap-4">
-                            <span className="hidden text-xs tracking-widest text-ink/50 lg:block">
-                                BUKA · 08:00 — 22:00
+                        <button
+                            onClick={() => openOrderModal()}
+                            className="craft-shadow-sm bg-yellow-400 flex items-center gap-2 rounded-xl border-2 border-cacao-900 bg-banana-400 px-5 py-2.5 text-sm font-bold text-cacao-900 transition-all hover:bg-banana-500 active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
+                        >
+                            <i className="fa-brands fa-whatsapp text-lg" />
+                            <span className="hidden sm:inline">
+                                Pesan Sekarang
                             </span>
-                            <Link
-                                href="/menu"
-                                className="group relative overflow-hidden rounded-full bg-ink px-5 py-2.5 text-xs font-medium uppercase tracking-widest text-cream transition-colors"
-                            >
-                                <span className="relative z-10">
-                                    Pesan Sekarang
-                                </span>
-                                <span className="absolute inset-0 z-0 translate-y-full bg-terracotta transition-transform duration-500 group-hover:translate-y-0" />
-                            </Link>
-                        </div>
+                            <span className="sm:hidden">Pesan</span>
+                        </button>
                     </div>
                 </header>
 
                 {/* ================= HERO ================= */}
-                <section className="relative overflow-hidden pt-32 md:pt-40">
-                    <div className="pointer-events-none absolute -right-40 top-20 h-[500px] w-[500px] rounded-full bg-terracotta/8 blur-3xl" />
+                <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8 lg:py-20">
+                    <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-12">
+                        {/* left */}
+                        <div className="space-y-6 lg:col-span-7">
+                            <h1 className="font-editorial text-4xl font-extrabold leading-[1.1] tracking-tight text-cacao-900 sm:text-6xl">
+                                Kelezatan Pisang Matang Dipadu{' '}
+                                <span className="italic font-normal underline decoration-banana-400 decoration-4 underline-offset-4">
+                                    Dark Chocolate
+                                </span>{' '}
+                                Lumer.
+                            </h1>
 
-                    <div className="mx-auto max-w-[1400px] px-6 md:px-10">
-                        <div className="grid grid-cols-12 items-end gap-8">
-                            {/* left */}
-                            <div className="col-span-12 lg:col-span-7">
-                                <Reveal>
-                                    <p className="mb-6 flex items-center gap-3 text-xs uppercase tracking-[0.25em] text-ink/50">
-                                        <span className="h-px w-8 bg-ink/30" />
-                                        Est. 2019 — Bandung
-                                    </p>
-                                </Reveal>
+                            <p className="max-w-2xl text-base font-medium leading-relaxed text-cacao-700 sm:text-lg">
+                                Kami memadukan pisang segar pilihan dengan
+                                lelehan racikan dark chocolate pahit-manis
+                                melimpah. Bukan sekadar gorengan biasa, tapi
+                                camilan pencuci mulut berkelas dengan standar
+                                kualitas tinggi.
+                            </p>
 
-                                <Reveal delay={0.1}>
-                                    <h1 className="font-display text-[clamp(2.75rem,8vw,7rem)] font-normal leading-[0.95] tracking-[-0.02em]">
-                                        Kopi yang diseduh
-                                        <br />
-                                        dengan{' '}
-                                        <em className="italic text-terracotta">
-                                            kesabaran
-                                        </em>
-                                        ,
-                                        <br />
-                                        disajikan dengan{' '}
-                                        <em className="italic">cerita</em>.
-                                    </h1>
-                                </Reveal>
+                            <div className="flex flex-col items-stretch gap-4 pt-4 sm:flex-row sm:items-center">
+                                <a
+                                    href="#menu"
+                                    className="craft-shadow bg-white flex items-center justify-center gap-3 rounded-xl border-2 border-cacao-900 bg-cacao-800 px-8 py-4 text-center font-bold text-banana-300 transition-all hover:bg-cacao-900 active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
+                                >
+                                    <span>Lihat Menu Pilihan</span>
+                                    <i className="fa-solid fa-arrow-down-long" />
+                                </a>
 
-                                <Reveal delay={0.2}>
-                                    <p className="mt-8 max-w-md text-[15px] leading-relaxed text-ink/65">
-                                        Kami memilih biji dari petani kecil di
-                                        Gayo, Toraja, dan Kintamani. Setiap
-                                        cangkir adalah hasil dari proses yang
-                                        tidak pernah kami buru-buru.
-                                    </p>
-                                </Reveal>
+                                <button
+                                    onClick={() => openOrderModal()}
+                                    className="craft-shadow cursor-pointer flex items-center justify-center gap-3 rounded-xl border-2 border-cacao-900 bg-white px-8 py-4 text-center font-bold text-cacao-900 transition-all hover:bg-craft-base active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
+                                >
+                                    <i className="fa-brands fa-whatsapp text-xl text-emerald-600" />
+                                    <span>Pesan Langsung</span>
+                                </button>
 
-                                <Reveal delay={0.3}>
-                                    <div className="mt-10 flex flex-wrap items-center gap-6">
-                                        <a
-                                            href="#menu"
-                                            className="group inline-flex items-center gap-3 text-sm font-medium"
-                                        >
-                                            <span className="relative grid h-12 w-12 place-items-center rounded-full border border-ink/20 transition-colors duration-300 group-hover:border-ink group-hover:bg-ink group-hover:text-cream">
-                                                <svg
-                                                    width="14"
-                                                    height="14"
-                                                    viewBox="0 0 24 24"
-                                                    fill="none"
-                                                    stroke="currentColor"
-                                                    strokeWidth="1.5"
-                                                >
-                                                    <path
-                                                        d="M5 12h14M13 6l6 6-6 6"
-                                                        strokeLinecap="round"
-                                                        strokeLinejoin="round"
-                                                    />
-                                                </svg>
-                                            </span>
-                                            <span>Lihat menu lengkap</span>
-                                        </a>
-
-                                        <div className="flex items-center gap-3 text-sm text-ink/60">
-                                            <div className="flex -space-x-2">
-                                                {[
-                                                    '#3F8E7C',
-                                                    '#34D399',
-                                                    '#064E3B',
-                                                ].map((c, i) => (
-                                                    <span
-                                                        key={i}
-                                                        className="h-6 w-6 rounded-full border-2 border-cream"
-                                                        style={{
-                                                            background: c,
-                                                        }}
-                                                    />
-                                                ))}
-                                            </div>
-                                            <span>4.9 · 1.2k ulasan</span>
-                                        </div>
-                                    </div>
-                                </Reveal>
+                                <button
+                                    onClick={() =>
+                                        window.open(SHOPEE_URL, '_blank')
+                                    }
+                                    className="craft-shadow flex items-center justify-center gap-3 rounded-xl border-2 border-cacao-900 bg-white px-8 py-4 text-center font-bold text-cacao-900 transition-all hover:bg-craft-base active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
+                                >
+                                    <svg
+                                        className="h-6 w-6 fill-[#ee4d2d]"
+                                        viewBox="0 0 24 24"
+                                        xmlns="http://www.w3.org/2000/svg"
+                                    >
+                                        <path d="M19.347 7.022l-1.92-4.14A1.332 1.332 0 0 0 16.223 2H7.776a1.332 1.332 0 0 0-1.204.882l-1.92 4.14A2.665 2.665 0 0 0 4 8.211V19a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V8.21a2.664 2.664 0 0 0-.653-1.188zM12 4a2 2 0 0 1 2 2h-4a2 2 0 0 1 2-2zm3.333 13.333h-6.666a.667.667 0 0 1 0-1.333h6.666a.667.667 0 0 1 0 1.333zm1.334-3.333H7.333a.667.667 0 0 1 0-1.334h9.334a.667.667 0 0 1 0 1.334z" />
+                                    </svg>
+                                    <span>Pesan Shoppe</span>
+                                </button>
                             </div>
 
-                            {/* right — overlapping images */}
-                            <div className="col-span-12 lg:col-span-5">
-                                <Reveal delay={0.25}>
-                                    <div className="relative mx-auto max-w-[420px] lg:ml-auto">
-                                        <div className="relative aspect-[4/5] overflow-hidden rounded-sm">
-                                            <img
-                                                src="https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=900&q=80"
-                                                alt="Interior Senja"
-                                                className="h-full w-full object-cover"
-                                            />
-                                        </div>
-
-                                        <div className="absolute -bottom-10 -left-10 hidden aspect-square w-40 overflow-hidden rounded-sm border-[6px] border-cream md:block lg:w-52">
-                                            <img
-                                                src="https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=600&q=80"
-                                                alt="Espresso"
-                                                className="h-full w-full object-cover"
-                                            />
-                                        </div>
-
-                                        {/* floating badge */}
-                                        <div className="absolute -right-4 top-8 flex items-center gap-2 rounded-full bg-cream/95 px-4 py-2 text-xs font-medium shadow-[0_10px_30px_-10px_rgba(0,0,0,.25)] backdrop-blur">
-                                            <span className="relative flex h-2 w-2">
-                                                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sage opacity-60" />
-                                                <span className="relative inline-flex h-2 w-2 rounded-full bg-sage" />
-                                            </span>
-                                            Sedang buka
-                                        </div>
-                                    </div>
-                                </Reveal>
+                            <div className="grid grid-cols-2 gap-4 border-t-2 border-cacao-800/20 pt-8">
+                                <div>
+                                    <p className="font-editorial text-3xl font-extrabold text-cacao-900">
+                                        100%
+                                    </p>
+                                    <p className="mt-1 text-xs font-semibold text-cacao-600">
+                                        Dark Chocolate
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="font-editorial text-3xl font-extrabold text-cacao-900">
+                                        Aman
+                                    </p>
+                                    <p className="mt-1 text-xs font-semibold text-cacao-600">
+                                        Tidak Bikin Eneg
+                                    </p>
+                                </div>
                             </div>
                         </div>
 
-                        {/* bottom stats strip */}
-                        <Reveal delay={0.4}>
-                            <div className="mt-24 grid grid-cols-2 gap-6 border-t border-ink/10 pt-8 md:grid-cols-4 md:gap-12">
-                                {[
-                                    ['06', 'Single origin pilihan'],
-                                    ['12h', 'Cold brew slow-drip'],
-                                    ['100%', 'Biji dari petani lokal'],
-                                    ['1.2k', 'Pelanggan setia'],
-                                ].map(([n, l]) => (
-                                    <div key={l}>
-                                        <p className="font-display text-4xl leading-none">
-                                            {n}
-                                        </p>
-                                        <p className="mt-2 text-xs uppercase tracking-widest text-ink/50">
-                                            {l}
-                                        </p>
-                                    </div>
-                                ))}
-                            </div>
-                        </Reveal>
-                    </div>
-                </section>
+                        {/* right */}
+                        <div className="relative mt-6 lg:col-span-5 lg:mt-0">
+                            <div className="relative mx-auto max-w-md lg:max-w-none">
+                                <div className="craft-shadow rotate-[1.5deg] rounded-2xl border-2 border-cacao-900 bg-white p-4 transition-transform hover:rotate-0">
+                                    <div className="relative h-80 overflow-hidden rounded-xl bg-cacao-900 sm:h-96">
+                                        <img
+                                            src="/assets/img/melted banana.jpeg"
+                                            alt="Melted Banana Premium Visual"
+                                            className="h-full w-full object-cover object-center"
+                                            onError={(e) => {
+                                                (e.target as HTMLImageElement).src =
+                                                    'https://placehold.co/800x800/23150e/fce48b?text=MELTED+BANANA';
+                                            }}
+                                        />
+                                        <div className="absolute inset-0 bg-linear-to-t from-cacao-900/90 via-transparent to-transparent" />
 
-                {/* ================= MARQUEE ================= */}
-                <section className="mt-32 overflow-hidden border-y border-ink/10 py-6">
-                    <div className="flex animate-[marquee_40s_linear_infinite] gap-12 whitespace-nowrap will-change-transform">
-                        {[0, 1].map((k) => (
-                            <div
-                                key={k}
-                                className="flex shrink-0 items-center gap-12"
-                            >
-                                {[
-                                    'SINGLE ORIGIN',
-                                    'MANUAL BREW',
-                                    'HOMEMADE PASTRY',
-                                    'SLOW BAR',
-                                    'NO RUSH',
-                                    'SEASONAL BLEND',
-                                ].map((t) => (
-                                    <span
-                                        key={t}
-                                        className="flex items-center gap-12 font-display text-3xl text-ink/30 md:text-4xl"
-                                    >
-                                        {t}
-                                        <span className="text-terracotta">
-                                            ✦
-                                        </span>
-                                    </span>
-                                ))}
-                            </div>
-                        ))}
-                    </div>
-                    <style>{`@keyframes marquee{to{transform:translateX(-50%)}}`}</style>
-                </section>
-
-                {/* ================= SIGNATURE ================= */}
-                <section id="cerita" className="py-32 md:py-40">
-                    <div className="mx-auto max-w-[1400px] px-6 md:px-10">
-                        <Reveal>
-                            <div className="mb-16 flex flex-wrap items-end justify-between gap-6">
-                                <div>
-                                    <p className="mb-4 text-xs uppercase tracking-[0.25em] text-ink/50">
-                                        / Tanda tangan kami
-                                    </p>
-                                    <h2 className="font-display text-5xl leading-[1.05] md:text-6xl">
-                                        Tiga hal yang{' '}
-                                        <em className="italic">paling</em>
-                                        <br />
-                                        sering dipesan.
-                                    </h2>
-                                </div>
-                                <p className="max-w-xs text-sm leading-relaxed text-ink/60">
-                                    Kalau ini kunjungan pertama, mulai dari
-                                    salah satu dari tiga ini.
-                                </p>
-                            </div>
-                        </Reveal>
-
-                        <div className="divide-y divide-ink/10 border-y border-ink/10">
-                            {SIGNATURE.map((s, i) => (
-                                <Reveal key={s.no} delay={i * 0.08}>
-                                    <div
-                                        className="group relative flex items-center justify-between gap-6 py-8 md:py-10"
-                                        onMouseEnter={() =>
-                                            setHoveredSig(s.no)
-                                        }
-                                        onMouseLeave={() =>
-                                            setHoveredSig(null)
-                                        }
-                                    >
-                                        <span className="w-12 font-display text-lg text-ink/30">
-                                            {s.no}
-                                        </span>
-
-                                        <div className="flex-1">
-                                            <h3 className="font-display text-3xl transition-transform duration-500 group-hover:translate-x-2 md:text-4xl">
-                                                {s.name}
-                                            </h3>
-                                            <p className="mt-1 text-sm text-ink/50">
-                                                {s.note}
+                                        <div className="absolute bottom-4 left-4 right-4 text-white">
+                                            <p className="text-xs font-bold uppercase tracking-widest text-banana-400">
+                                                Melted Banana
                                             </p>
-                                        </div>
-
-                                        <span className="font-display text-2xl text-terracotta">
-                                            {s.price}
-                                        </span>
-
-                                        <div
-                                            className={`pointer-events-none absolute right-32 top-1/2 hidden h-40 w-40 -translate-y-1/2 overflow-hidden rounded-sm shadow-xl transition-all duration-500 md:block ${
-                                                hoveredSig === s.no
-                                                    ? 'scale-100 opacity-100'
-                                                    : 'scale-90 opacity-0'
-                                            }`}
-                                        >
-                                            <img
-                                                src={s.img}
-                                                alt={s.name}
-                                                className="h-full w-full object-cover"
-                                            />
+                                            <h3 className="mt-0.5 font-editorial text-2xl font-bold text-white">
+                                                Original Dark Choco
+                                            </h3>
                                         </div>
                                     </div>
-                                </Reveal>
-                            ))}
-                        </div>
-                    </div>
-                </section>
-
-                {/* ================= MENU / ORDER ================= */}
-                <section
-                    id="menu"
-                    className="bg-ink py-32 text-cream md:py-40"
-                >
-                    <div className="mx-auto max-w-[1400px] px-6 md:px-10">
-                        <Reveal>
-                            <div className="mb-12 flex flex-wrap items-end justify-between gap-8">
-                                <div>
-                                    <p className="mb-4 text-xs uppercase tracking-[0.25em] text-cream/50">
-                                        / Menu
-                                    </p>
-                                    <h2 className="font-display text-5xl leading-[1.05] md:text-6xl">
-                                        Pilih, tambah,{' '}
-                                        <em className="italic">nikmati</em>.
-                                    </h2>
                                 </div>
 
-                                <div className="flex flex-wrap gap-2">
-                                    {CATS.map((c) => (
-                                        <button
-                                            key={c}
-                                            onClick={() => setCat(c)}
-                                            className={`rounded-full border px-4 py-2 text-xs uppercase tracking-widest transition-all duration-300 ${
-                                                cat === c
-                                                    ? 'border-cream bg-cream text-ink'
-                                                    : 'border-cream/25 text-cream/70 hover:border-cream/60 hover:text-cream'
-                                            }`}
-                                        >
-                                            {c}
-                                        </button>
-                                    ))}
+                                {/* paper sticker */}
+                                <div className="craft-shadow-sm bg-white absolute -left-6 -top-6 hidden rotate-[-1.5deg] rounded-xl border-2 border-cacao-900 bg-banana-300 p-4 text-cacao-900 sm:block">
+                                    <p className="font-editorial text-xs font-bold uppercase tracking-widest">
+                                        Cerita Melted
+                                    </p>
+                                    <p className="mt-0.5 text-sm font-extrabold">
+                                        BEST SELLER
+                                    </p>
+                                </div>
+
+                                {/* stamp badge */}
+                                <div className="craft-shadow-sm absolute -bottom-6 -right-4 flex h-28 w-28 rotate-[1.5deg] items-center justify-center rounded-full border-2 border-cacao-900 bg-white p-3.5 text-center text-cacao-900">
+                                    <div>
+                                        <i className="fa-solid fa-fire text-lg text-amber-600" />
+                                        <p className="mt-1 font-editorial text-xs font-black uppercase leading-tight">
+                                            Coklat Menutup Sempurna!
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
-                        </Reveal>
-
-                        <div className="grid grid-cols-1 gap-x-8 gap-y-14 sm:grid-cols-2 lg:grid-cols-3">
-                            {filtered.map((item, i) => (
-                                <Reveal key={item.id} delay={i * 0.06}>
-                                    <article className="group">
-                                        <div className="relative aspect-[4/5] overflow-hidden rounded-sm bg-ink/40">
-                                            <img
-                                                src={item.img}
-                                                alt={item.name}
-                                                className="h-full w-full object-cover transition-transform duration-[900ms] ease-out group-hover:scale-[1.05]"
-                                            />
-
-                                            {item.tag && (
-                                                <span className="absolute left-4 top-4 rounded-full bg-gold px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-ink">
-                                                    {item.tag}
-                                                </span>
-                                            )}
-
-                                            <button
-                                                onClick={() => add(item)}
-                                                className="absolute bottom-4 right-4 grid h-12 w-12 translate-y-2 place-items-center rounded-full bg-cream text-ink opacity-0 transition-all duration-500 hover:bg-terracotta hover:text-cream group-hover:translate-y-0 group-hover:opacity-100"
-                                                aria-label={`Tambah ${item.name}`}
-                                            >
-                                                <svg
-                                                    width="16"
-                                                    height="16"
-                                                    viewBox="0 0 24 24"
-                                                    fill="none"
-                                                    stroke="currentColor"
-                                                    strokeWidth="1.8"
-                                                >
-                                                    <path
-                                                        d="M12 5v14M5 12h14"
-                                                        strokeLinecap="round"
-                                                    />
-                                                </svg>
-                                            </button>
-                                        </div>
-
-                                        <div className="mt-5 flex items-start justify-between gap-4">
-                                            <div>
-                                                <h3 className="font-display text-2xl">
-                                                    {item.name}
-                                                </h3>
-                                                <p className="mt-1 text-sm text-cream/55">
-                                                    {item.desc}
-                                                </p>
-                                            </div>
-                                            <span className="whitespace-nowrap font-display text-lg text-sage">
-                                                {rupiah(item.price)}
-                                            </span>
-                                        </div>
-                                    </article>
-                                </Reveal>
-                            ))}
                         </div>
                     </div>
                 </section>
 
-                {/* ================= LOKASI ================= */}
-                <section id="lokasi" className="py-32 md:py-40">
-                    <div className="mx-auto max-w-[1400px] px-6 md:px-10">
-                        <div className="grid grid-cols-12 gap-10">
-                            <Reveal className="col-span-12 lg:col-span-5">
-                                <p className="mb-4 text-xs uppercase tracking-[0.25em] text-ink/50">
-                                    / Kunjungi
-                                </p>
-                                <h2 className="font-display text-5xl leading-[1.05] md:text-6xl">
-                                    Mampir, duduk,
-                                    <br />
-                                    <em className="italic">
-                                        tinggal lebih lama
-                                    </em>
-                                    .
+                {/* ================= CERITA ================= */}
+                <section
+                    id="cerita"
+                    className="border-y-2 border-cacao-900 bg-amber-950 text-white py-16 text-craft-light"
+                >
+                    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                        <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-12">
+                            <div className="space-y-4 lg:col-span-5">
+                                <div className="craft-shadow-gold rotate-[-1.5deg] rounded-2xl border-2 border-banana-400 bg-cacao-900 p-3">
+                                    <img
+                                        src="/assets/img/antar.jpeg"
+                                        alt="Dark Chocolate Melt Process"
+                                        className="h-72 w-full rounded-xl object-cover"
+                                        onError={(e) => {
+                                            (e.target as HTMLImageElement).src =
+                                                'https://placehold.co/600x600/140c09/fce48b?text=PROSES';
+                                        }}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-6 lg:col-span-7">
+                                <span className="rounded-md border border-banana-400/40 bg-cacao-900 px-3 py-1.5 text-xs font-bold uppercase tracking-widest text-banana-400">
+                                    Cerita Melted Banana
+                                </span>
+
+                                <h2 className="font-editorial text-3xl font-extrabold leading-tight text-white sm:text-4xl">
+                                    Dari mana ide ini berasal?
                                 </h2>
 
-                                <div className="mt-10 space-y-6 text-sm">
-                                    <div>
-                                        <p className="text-xs uppercase tracking-widest text-ink/40">
-                                            Alamat
-                                        </p>
-                                        <p className="mt-1 leading-relaxed">
-                                            Jl. Braga No. 88, Sumur Bandung
-                                            <br />
-                                            Kota Bandung, Jawa Barat 40111
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs uppercase tracking-widest text-ink/40">
-                                            Jam Buka
-                                        </p>
-                                        <p className="mt-1">
-                                            Senin — Kamis · 08:00 – 22:00
-                                        </p>
-                                        <p>
-                                            Jumat — Minggu · 08:00 – 24:00
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs uppercase tracking-widest text-ink/40">
-                                            Kontak
-                                        </p>
-                                        <p className="mt-1">
-                                            +62 812 3456 7890 ·
-                                            hello@senja.id
-                                        </p>
-                                    </div>
-                                </div>
-                            </Reveal>
+                                <p className="text-base font-normal leading-relaxed text-craft-base">
+                                    Berawal dari rasa penasaran terhadap perpaduan rasa gurih dan manis, indonesia Tingkat konsumsi buah pisang di Indonesia menduduki posisi pertama dibandingkan dengan komoditas buah tropis lainnya. Berdasarkan data dari Badan Pusat Statistik (BPS) mencapai 30,45 % perhari. oleh karena itu menjadikan pisang sebagai bahan baku utama untuk membuat camilan yang unik dan menarik. Melted Banana hadir sebagai inovasi camilan pisang goreng dengan lelehan dark chocolate yang lumer di mulut, memberikan pengalaman rasa yang berbeda dan memuaskan bagi para pecinta camilan manis.
+                                </p>
 
-                            <Reveal
-                                delay={0.15}
-                                className="col-span-12 lg:col-span-7"
-                            >
-                                <div className="relative aspect-[5/4] overflow-hidden rounded-sm">
-                                    <img
-                                        src="https://images.unsplash.com/photo-1521017432531-fbd92d768814?w=1200&q=80"
-                                        alt="Lokasi Senja"
-                                        className="h-full w-full object-cover"
-                                    />
-                                    <div className="absolute bottom-6 left-6 rounded-sm bg-cream/95 px-5 py-3 backdrop-blur">
-                                        <p className="text-xs uppercase tracking-widest text-ink/50">
-                                            Senja Coffee
+                                <div className="grid grid-cols-1 gap-4 pt-2 sm:grid-cols-2">
+                                    <div className="rounded-xl border border-cacao-700 bg-cacao-900/60 p-4">
+                                        <i className="fa-solid fa-leaf mb-2 text-xl text-banana-400" />
+                                        <h4 className="text-sm font-bold text-white">
+                                            Pisang Gepuk Matang Alami
+                                        </h4>
+                                        <p className="mt-1 text-xs text-craft-accent">
+                                            Dipilih pada puncak kematangan
+                                            alami agar manisnya pas dan
+                                            teksturnya lembut.
                                         </p>
-                                        <p className="mt-1 font-display text-lg">
-                                            Braga, Bandung
+                                    </div>
+
+                                    <div className="rounded-xl border border-cacao-700 bg-cacao-900/60 p-4">
+                                        <i className="fa-solid fa-mortar-pestle mb-2 text-xl text-banana-400" />
+                                        <h4 className="text-sm font-bold text-white">
+                                            Bittersweet Balance
+                                        </h4>
+                                        <p className="mt-1 text-xs text-craft-accent">
+                                            Perpaduan pahit gurih yang
+                                            menetralisir rasa manis berlebih.
                                         </p>
                                     </div>
                                 </div>
-                            </Reveal>
+                            </div>
                         </div>
+                    </div>
+                </section>
+
+                {/* ================= MENU ================= */}
+                <section
+                    id="menu"
+                    className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8"
+                >
+                    <div className="mb-12 flex flex-col justify-between gap-6 border-b-2 border-cacao-900 pb-6 md:flex-row md:items-end">
+                        <div>
+                            <span className="rounded-md border border-cacao-900 bg-banana-300 px-3 py-1 text-xs font-bold uppercase tracking-widest text-cacao-600">
+                                Katalog Pilihan
+                            </span>
+                            <h2 className="mt-3 font-editorial text-3xl font-extrabold text-cacao-900 sm:text-5xl">
+                                Menu Spesial Melted Banana
+                            </h2>
+                        </div>
+                        <p className="max-w-md text-sm font-medium text-cacao-700">
+                            Pilih menu yang tersedia, lalu kirim pesanan untuk
+                            dikonfirmasi langsung oleh admin.
+                        </p>
+                    </div>
+
+                    {menuItems.length === 0 ? (
+                        <div className="rounded-2xl border-2 border-dashed border-cacao-900/30 bg-white p-10 text-center">
+                            <p className="font-editorial text-xl font-bold text-cacao-900">
+                                Menu sedang disiapkan.
+                            </p>
+                            <p className="mt-2 text-sm text-cacao-700">
+                                Silakan kembali lagi nanti.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                            {menuItems.map((item) => (
+                                <article
+                                    key={item.id}
+                                    className="craft-shadow flex flex-col overflow-hidden rounded-2xl border-2 border-cacao-900 bg-white"
+                                >
+                                    <div className="h-56 bg-craft-base">
+                                        {item.image ? (
+                                            <img
+                                                src={item.image}
+                                                alt={item.name}
+                                                className="h-full w-full object-cover"
+                                            />
+                                        ) : (
+                                            <div className="flex h-full items-center justify-center text-cacao-700">
+                                                <i className="fa-solid fa-utensils text-4xl" />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex flex-1 flex-col p-5">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <h3 className="font-editorial text-xl font-extrabold text-cacao-900">
+                                                {item.name}
+                                            </h3>
+                                            <span className="shrink-0 rounded-md border border-cacao-900 bg-banana-100 px-2.5 py-1 font-bold text-cacao-900">
+                                                Rp{' '}
+                                                {Number(item.price).toLocaleString('id-ID')}
+                                            </span>
+                                        </div>
+                                        {item.description && (
+                                            <p className="mt-3 flex-1 text-sm leading-relaxed text-cacao-700">
+                                                {item.description}
+                                            </p>
+                                        )}
+                                        <button
+                                            onClick={() => openOrderModal(item.id)}
+                                            className="mt-5 bg-amber-700 cursor-pointer hover:bg-amber-900 flex w-full items-center justify-center gap-2 rounded-xl border border-cacao-900 bg-cacao-800 py-3 text-sm font-bold text-white transition-colors hover:bg-cacao-900"
+                                        >
+                                            <i className="fa-solid fa-cart-plus" />
+                                            <span>Pesan Menu Ini</span>
+                                        </button>
+                                    </div>
+                                </article>
+                            ))}
+                        </div>
+                    )}
+                </section>
+
+                {/* ================= KEUNGGULAN ================= */}
+                <section
+                    id="keunggulan"
+                    className="border-y-2 border-cacao-900 bg-craft-base py-16"
+                >
+                    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                        <div className="mx-auto mb-12 max-w-2xl text-center">
+                            <h2 className="font-editorial text-3xl font-extrabold text-cacao-900">
+                                Standar Kualitas Melted Banana
+                            </h2>
+                            <p className="mt-2 text-sm font-medium text-cacao-700">
+                                Prinsip sederhana yang membuat rasa produk kami
+                                tetap konsisten.
+                            </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
+                            {[
+                                {
+                                    num: '1',
+                                    title: 'Selalu Fresh Digoreng',
+                                    desc: 'Pisang hanya digoreng dan disiram cokelat setelah pesanan Anda masuk untuk menjaga kehangatan dan krispi luar.',
+                                    tilt: 'rotate-[-1.5deg]',
+                                },
+                                {
+                                    num: '2',
+                                    title: 'Bahan Terjamin Halal',
+                                    desc: 'Seluruh bahan baku dari cokelat, minyak nabati, hingga topping telah bersertifikat Halal & higienis.',
+                                    tilt: '',
+                                },
+                                {
+                                    num: '3',
+                                    title: 'Kemasan Aman & Clean',
+                                    desc: 'Box khusus food-grade anti bocor untuk menjaga lelehan cokelat tidak tumpah selama perjalanan pengiriman.',
+                                    tilt: 'rotate-[1.5deg]',
+                                },
+                            ].map((f) => (
+                                <div
+                                    key={f.num}
+                                    className={`craft-shadow rounded-2xl border-2 border-cacao-900 bg-white p-6 ${f.tilt}`}
+                                >
+                                    <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl border border-cacao-900 bg-banana-300 text-xl font-bold text-cacao-900">
+                                        {f.num}
+                                    </div>
+                                    <h3 className="font-editorial text-xl font-bold text-cacao-900">
+                                        {f.title}
+                                    </h3>
+                                    <p className="mt-2 text-xs font-medium leading-relaxed text-cacao-700">
+                                        {f.desc}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </section>
+
+                {/* ================= TESTIMONI ================= */}
+                <section
+                    id="testimoni"
+                    className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8"
+                >
+                    <div className="mx-auto mb-14 max-w-2xl text-center">
+                        <span className="rounded-md border border-cacao-900 bg-banana-300 px-3 py-1 text-xs font-bold uppercase tracking-widest text-cacao-600">
+                            Ulasan Jujur
+                        </span>
+                        <h2 className="mt-2 font-editorial text-3xl font-extrabold text-cacao-900 sm:text-4xl">
+                            Kata Mereka
+                        </h2>
+                    </div>
+
+                    {comments.length > 0 ? (
+                        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                            {comments.map((comment, index) => (
+                                <div
+                                    key={comment.id}
+                                    className={`craft-shadow relative rounded-2xl border-2 border-cacao-900 p-6 ${
+                                        index % 2 === 0
+                                            ? 'bg-white'
+                                            : 'bg-banana-100'
+                                    }`}
+                                >
+                                    <div
+                                        aria-hidden="true"
+                                        className="absolute -top-2 left-1/2 h-4 w-4 -translate-x-1/2 rounded-full border border-cacao-900 bg-banana-400"
+                                    />
+                                    <p className="text-sm font-medium italic leading-relaxed text-cacao-800 sm:text-base">
+                                        “{comment.comment}”
+                                    </p>
+                                    <div className="mt-4 border-t border-cacao-800/10 pt-3">
+                                        <p className="text-xs font-bold text-cacao-900">
+                                            {comment.name}
+                                        </p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="rounded-2xl border-2 border-dashed border-cacao-800/30 bg-white/70 px-6 py-10 text-center text-sm font-medium text-cacao-700">
+                            Belum ada ulasan. Jadilah yang pertama berbagi
+                            pengalaman!
+                        </p>
+                    )}
+
+                    <div className="mt-10 text-center">
+                        <Link
+                            href={evaluasiPage.url()}
+                            className="craft-shadow inline-flex items-center justify-center gap-2 rounded-xl border-2 border-cacao-900 bg-banana-400 px-6 py-3 font-bold text-cacao-900 transition-colors hover:bg-banana-500"
+                        >
+                            <i className="fa-regular fa-comment-dots" />
+                            Tulis Komentar
+                        </Link>
                     </div>
                 </section>
 
                 {/* ================= FOOTER ================= */}
-                <footer className="border-t border-ink/10 bg-cream">
-                    <div className="mx-auto max-w-[1400px] px-6 py-16 md:px-10">
-                        <div className="grid grid-cols-12 gap-8">
-                            <div className="col-span-12 md:col-span-6">
-                                <p className="font-display text-[clamp(3rem,10vw,8rem)] leading-none tracking-tight">
-                                    Senja
-                                    <span className="text-terracotta">.</span>
+                <footer className="border-t-2 border-cacao-900 bg-amber-950 text-white pb-12 pt-16 text-craft-light">
+                    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                        <div className="grid grid-cols-1 gap-10 border-b border-cacao-700 pb-12 md:grid-cols-12">
+                            <div className="space-y-4 md:col-span-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-banana-400 font-editorial text-xl font-extrabold text-cacao-900">
+                                        MB
+                                    </div>
+                                    <span className="font-editorial text-2xl font-extrabold text-white">
+                                        MELTED BANANA
+                                    </span>
+                                </div>
+                                <p className="max-w-sm text-xs leading-relaxed text-craft-accent sm:text-sm">
+                                    Pelopor camilan pisang goreng dark
+                                    chocolate lumer dengan rasa bittersweet
+                                    autentik. Dibuat fresh setiap hari dengan
+                                    bahan-bahan kualitas terbaik.
                                 </p>
-                            </div>
-                            <div className="col-span-6 md:col-span-2">
-                                <p className="mb-4 text-xs uppercase tracking-widest text-ink/40">
-                                    Jelajahi
-                                </p>
-                                <ul className="space-y-2 text-sm">
-                                    <li>
+                                <div className="flex items-center gap-3 pt-2">
+                                    {[
+                                        'fa-instagram',
+                                        'fa-tiktok',
+                                        'fa-whatsapp',
+                                    ].map((icon) => (
                                         <a
-                                            href="#menu"
-                                            className="hover:text-terracotta"
-                                        >
-                                            Menu
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a
-                                            href="#cerita"
-                                            className="hover:text-terracotta"
-                                        >
-                                            Cerita
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a
-                                            href="#lokasi"
-                                            className="hover:text-terracotta"
-                                        >
-                                            Lokasi
-                                        </a>
-                                    </li>
-                                </ul>
-                            </div>
-                            <div className="col-span-6 md:col-span-2">
-                                <p className="mb-4 text-xs uppercase tracking-widest text-ink/40">
-                                    Sosial
-                                </p>
-                                <ul className="space-y-2 text-sm">
-                                    <li>
-                                        <a
+                                            key={icon}
                                             href="#"
-                                            className="hover:text-terracotta"
+                                            className="flex h-9 w-9 items-center justify-center rounded-lg border border-cacao-700 bg-cacao-800 text-banana-400 transition-all hover:bg-banana-400 hover:text-cacao-900"
                                         >
-                                            Instagram
+                                            <i
+                                                className={`fa-brands ${icon}`}
+                                            />
                                         </a>
-                                    </li>
-                                    <li>
-                                        <a
-                                            href="#"
-                                            className="hover:text-terracotta"
-                                        >
-                                            TikTok
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a
-                                            href="#"
-                                            className="hover:text-terracotta"
-                                        >
-                                            WhatsApp
-                                        </a>
-                                    </li>
-                                </ul>
+                                    ))}
+                                </div>
                             </div>
-                            <div className="col-span-12 md:col-span-2">
-                                <p className="mb-4 text-xs uppercase tracking-widest text-ink/40">
-                                    Newsletter
-                                </p>
-                                <form className="flex items-center gap-2 border-b border-ink/20 pb-2">
-                                    <input
-                                        type="email"
-                                        placeholder="email@kamu.com"
-                                        className="w-full bg-transparent text-sm placeholder:text-ink/30 focus:outline-none"
-                                    />
-                                    <button className="text-xs uppercase tracking-widest hover:text-terracotta">
-                                        Kirim
-                                    </button>
-                                </form>
+
+                            <div className="space-y-3 md:col-span-6">
+                                <h4 className="mb-2 font-editorial text-lg font-bold text-white">
+                                    Outlet & Jam Operasional
+                                </h4>
+                                <div className="space-y-2 text-xs text-craft-accent sm:text-sm">
+                                    <p className="flex items-center gap-2">
+                                        <i className="fa-regular fa-clock text-banana-400" />
+                                        <span>
+                                            Buka Setiap Hari: 10.00 - 21.30 WIB
+                                        </span>
+                                    </p>
+                                    <p className="flex items-start gap-2">
+                                        <i className="fa-solid fa-location-dot mt-1 text-banana-400" />
+                                        <span>
+                                            Outlet Utama: Ds. Maribaya, Kec.
+                                            Kramat, Kab. Tegal
+                                        </span>
+                                    </p>
+                                    <p className="flex items-center gap-2 pt-1">
+                                        <i className="fa-solid fa-phone text-banana-400" />
+                                        <span>+62 895-3842-23639</span>
+                                    </p>
+                                </div>
                             </div>
                         </div>
 
-                        <div className="mt-16 flex flex-wrap items-center justify-between gap-4 border-t border-ink/10 pt-6 text-xs text-ink/40">
+                        <div className="pt-8 text-center text-[11px] text-craft-dark">
                             <p>
-                                © {new Date().getFullYear()} Senja Coffee.
-                                Semua hak cipta dilindungi.
+                                &copy; {new Date().getFullYear()} MELTED BANANA.
+                                Fathur Rizqi Putra Pratama.
                             </p>
-                            <p>Dibuat dengan tenang di Bandung.</p>
                         </div>
                     </div>
                 </footer>
 
-                {/* ================= FLOATING CART ================= */}
-                {count > 0 && !cartOpen && (
-                    <button
-                        onClick={() => setCartOpen(true)}
-                        className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-full bg-ink px-5 py-3 text-cream shadow-2xl transition-all duration-500 hover:bg-terracotta"
-                        style={{
-                            animation: 'pop .4s cubic-bezier(.16,1,.3,1)',
+                {/* ================= ORDER MODAL ================= */}
+                {modalOpen && (
+                    <div
+                        className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-cacao-900/80 p-4 backdrop-blur-sm"
+                        onClick={(e) => {
+                            if (e.target === e.currentTarget) {
+                                setModalOpen(false);
+                            }
                         }}
                     >
-                        <span className="grid h-6 w-6 place-items-center rounded-full bg-cream text-xs font-semibold text-ink">
-                            {count}
-                        </span>
-                        <span className="text-sm font-medium">
-                            {rupiah(total)}
-                        </span>
-                        <span className="text-xs uppercase tracking-widest">
-                            Lihat
-                        </span>
-                    </button>
-                )}
-
-                {/* ================= CART DRAWER ================= */}
-                <div
-                    className={`fixed inset-0 z-[60] transition-opacity duration-300 ${
-                        cartOpen
-                            ? 'pointer-events-auto opacity-100'
-                            : 'pointer-events-none opacity-0'
-                    }`}
-                >
-                    <div
-                        className="absolute inset-0 bg-ink/40 backdrop-blur-sm"
-                        onClick={() => setCartOpen(false)}
-                    />
-                    <aside
-                        className={`absolute right-0 top-0 flex h-full w-full max-w-md flex-col bg-cream transition-transform duration-500 ease-[cubic-bezier(.16,1,.3,1)] ${
-                            cartOpen ? 'translate-x-0' : 'translate-x-full'
-                        }`}
-                    >
-                        <div className="flex items-center justify-between border-b border-ink/10 px-6 py-5">
-                            <div>
-                                <p className="text-xs uppercase tracking-widest text-ink/40">
-                                    Pesanan kamu
-                                </p>
-                                <p className="mt-1 font-display text-2xl">
-                                    {count} item
-                                </p>
-                            </div>
+                        <div className="craft-shadow relative w-full max-w-lg rounded-2xl border-2 border-cacao-900 bg-craft-light p-6 transition-all sm:p-8">
                             <button
-                                onClick={() => setCartOpen(false)}
-                                className="grid h-10 w-10 place-items-center rounded-full border border-ink/15 transition hover:bg-ink hover:text-cream"
+                                onClick={() => setModalOpen(false)}
+                                className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-xl bg-cacao-800 text-white transition-colors hover:bg-cacao-900"
                                 aria-label="Tutup"
                             >
-                                <svg
-                                    width="14"
-                                    height="14"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="1.8"
-                                >
-                                    <path
-                                        d="M6 6l12 12M18 6L6 18"
-                                        strokeLinecap="round"
-                                    />
-                                </svg>
+                                <i className="fa-solid fa-xmark" />
                             </button>
-                        </div>
 
-                        <div className="flex-1 overflow-y-auto px-6 py-4">
-                            {cart.length === 0 ? (
-                                <p className="mt-10 text-center text-sm text-ink/50">
-                                    Keranjang masih kosong.
-                                </p>
-                            ) : (
-                                <ul className="divide-y divide-ink/10">
-                                    {cart.map((x) => (
-                                        <li
-                                            key={x.id}
-                                            className="flex items-center gap-4 py-4"
-                                        >
-                                            <img
-                                                src={x.img}
-                                                alt={x.name}
-                                                className="h-16 w-16 rounded-sm object-cover"
-                                            />
-                                            <div className="flex-1">
-                                                <p className="font-display text-lg leading-tight">
-                                                    {x.name}
-                                                </p>
-                                                <p className="text-xs text-ink/50">
-                                                    {rupiah(x.price)} × {x.qty}
-                                                </p>
-                                            </div>
-                                            <button
-                                                onClick={() => remove(x.id)}
-                                                className="text-xs uppercase tracking-widest text-ink/40 hover:text-terracotta"
-                                            >
-                                                Hapus
-                                            </button>
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                        </div>
-
-                        <div className="border-t border-ink/10 px-6 py-6">
-                            <div className="mb-4 flex items-center justify-between">
-                                <span className="text-sm text-ink/60">
-                                    Total
-                                </span>
-                                <span className="font-display text-3xl">
-                                    {rupiah(total)}
-                                </span>
+                            <div className="mb-6 flex items-center gap-3">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cacao-900 bg-emerald-100 text-xl text-emerald-700">
+                                    <i className="fa-brands fa-whatsapp" />
+                                </div>
+                                <div>
+                                    <h3 className="font-editorial text-xl font-extrabold text-cacao-900">
+                                        Form Pesanan Cepat
+                                    </h3>
+                                    <p className="text-xs font-medium text-cacao-600">
+                                        Terhubung langsung ke WhatsApp Outlet
+                                    </p>
+                                </div>
                             </div>
-                            <button
-                                disabled={cart.length === 0}
-                                className="w-full rounded-full bg-ink py-4 text-sm font-medium uppercase tracking-widest text-cream transition hover:bg-terracotta disabled:opacity-40"
-                            >
-                                Lanjut ke pesanan
-                            </button>
-                            <p className="mt-3 text-center text-[11px] text-ink/40">
-                                Bayar di kasir atau transfer — kamu akan
-                                diarahkan ke halaman konfirmasi.
-                            </p>
-                        </div>
-                    </aside>
-                </div>
 
-                <style>{`@keyframes pop{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}`}</style>
+                            <form
+                                onSubmit={submitOrder}
+                                className="space-y-4"
+                            >
+                                <div>
+                                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-cacao-900">
+                                        Nama Pemesan
+                                    </label>
+                                    <input
+                                        type="text"
+                                        required
+                                        maxLength={120}
+                                        value={form.data.customer_name}
+                                        onChange={(e) => form.setData('customer_name', e.target.value)}
+                                        placeholder="Contoh: Budi Santoso"
+                                        className="w-full rounded-xl border-2 border-cacao-900 px-4 py-3 text-sm font-medium focus:bg-white focus:outline-none"
+                                    />
+                                    {form.errors.customer_name && (
+                                        <p className="mt-1 text-xs font-semibold text-red-700">
+                                            {form.errors.customer_name}
+                                        </p>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-cacao-900">
+                                        Nomor WhatsApp
+                                    </label>
+                                    <input
+                                        type="tel"
+                                        required
+                                        maxLength={20}
+                                        value={form.data.whatsapp_number}
+                                        onChange={(e) => form.setData('whatsapp_number', e.target.value)}
+                                        placeholder="Contoh: 081234567890"
+                                        className="w-full rounded-xl border-2 border-cacao-900 px-4 py-3 text-sm font-medium focus:bg-white focus:outline-none"
+                                    />
+                                    {form.errors.whatsapp_number && (
+                                        <p className="mt-1 text-xs font-semibold text-red-700">
+                                            {form.errors.whatsapp_number}
+                                        </p>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-cacao-900">
+                                        Pilih Menu
+                                    </label>
+                                    <select
+                                        required
+                                        value={selectedItem?.id ?? ''}
+                                        onChange={(e) => {
+                                            const menuId = Number(e.target.value);
+                                            form.setData('items', [{ menu_id: menuId, quantity: 1 }]);
+                                        }}
+                                        className="w-full rounded-xl border-2 border-cacao-900 bg-white px-4 py-3 text-sm font-medium focus:outline-none"
+                                    >
+                                        {menuItems.map((m) => (
+                                            <option
+                                                key={m.id}
+                                                value={m.id}
+                                            >
+                                                {m.name} (Rp {Number(m.price).toLocaleString('id-ID')})
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {form.errors.items && (
+                                        <p className="mt-1 text-xs font-semibold text-red-700">
+                                            {form.errors.items}
+                                        </p>
+                                    )}
+                                </div>
+                                {form.errors['items.0.quantity'] && (
+                                    <p className="text-xs font-semibold text-red-700">
+                                        {form.errors['items.0.quantity']}
+                                    </p>
+                                )}
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-cacao-900">
+                                            Jumlah Porsi
+                                        </label>
+                                        <div className="flex items-center overflow-hidden rounded-xl border-2 border-cacao-900 bg-white">
+                                            <button
+                                                type="button"
+                                                onClick={() => adjustQty(-1)}
+                                                className="bg-craft-base px-3 py-2 font-bold text-cacao-900 transition-colors hover:bg-banana-300"
+                                            >
+                                                -
+                                            </button>
+                                            <input
+                                                type="number"
+                                                value={quantity}
+                                                readOnly
+                                                className="w-full text-center text-sm font-extrabold text-cacao-900 focus:outline-none"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => adjustQty(1)}
+                                                className="bg-craft-base px-3 py-2 font-bold text-cacao-900 transition-colors hover:bg-banana-300"
+                                            >
+                                                +
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-cacao-900">
+                                            Metode Ambil
+                                        </label>
+                                        <select
+                                            value={form.data.delivery_method}
+                                            onChange={(e) => form.setData('delivery_method', e.target.value)}
+                                            className="w-full rounded-xl border-2 border-cacao-900 bg-white px-4 py-3 text-sm font-medium focus:outline-none"
+                                        >
+                                            <option value="Takeaway / Ambil Sendiri">
+                                                Ambil di Outlet
+                                            </option>
+                                            <option value="Delivery Ojol (Gojek/Grab)">
+                                                Kirim
+                                            </option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-cacao-900">
+                                        Catatan Tambahan (Opsional)
+                                    </label>
+                                    <textarea
+                                        rows={2}
+                                        maxLength={1000}
+                                        value={form.data.notes}
+                                        onChange={(e) => form.setData('notes', e.target.value)}
+                                        placeholder="Contoh: Cokelat dipisah, tidak pakai oreo, dll."
+                                        className="w-full rounded-xl border-2 border-cacao-900 px-4 py-3 text-sm font-medium focus:bg-white focus:outline-none"
+                                    />
+                                </div>
+                                {form.errors.notes && (
+                                    <p className="text-xs font-semibold text-red-700">
+                                        {form.errors.notes}
+                                    </p>
+                                )}
+
+                                <div className="flex items-center justify-between rounded-xl border-2 border-cacao-900 bg-banana-300 p-4">
+                                    <span className="text-xs font-bold uppercase text-cacao-900">
+                                        Total Estimasi:
+                                    </span>
+                                    <span className="font-editorial text-2xl font-black text-cacao-900">
+                                        Rp {total.toLocaleString('id-ID')}
+                                    </span>
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    disabled={form.processing || !selectedItem}
+                                    className="craft-shadow flex w-full items-center justify-center gap-2 rounded-xl border-2 border-cacao-900 bg-emerald-600 py-3.5 font-bold text-white transition-all hover:bg-emerald-700 active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
+                                >
+                                    <i className="fa-brands fa-whatsapp text-lg" />
+                                    <span>{form.processing ? 'Menyimpan pesanan...' : 'Simpan & lanjut ke WhatsApp'}</span>
+                                </button>
+                                <p className="text-center text-xs text-cacao-600">
+                                    Pesanan dicatat di sistem sebelum WhatsApp dibuka. Admin akan mengonfirmasi ketersediaannya.
+                                </p>
+                            </form>
+                        </div>
+                    </div>
+                )}
             </div>
         </>
     );
