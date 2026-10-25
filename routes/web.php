@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AdminPage\MenuAdminController;
 use App\Http\Controllers\AdminPage\OrderController;
+use App\Http\Controllers\AdminPage\OutletAdminController;
 use App\Http\Controllers\Evaluasi\ComentarController;
 use App\Http\Controllers\LandingPage\LandingPageController;
 use App\Http\Controllers\UserPage\MenuController;
@@ -23,6 +24,10 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/admin/menu/{id}/edit', [MenuAdminController::class, 'edit'])->name('admin.menu.edit');
         Route::put('/admin/menu/{id}', [MenuAdminController::class, 'update'])->name('admin.menu.update');
         Route::delete('/admin/menu/{id}', [MenuAdminController::class, 'destroy'])->name('admin.menu.destroy');
+
+        Route::resource('/admin/outlets', OutletAdminController::class)
+            ->except('show')
+            ->names('admin.outlets');
 
         Route::get('/admin/orders', [OrderController::class, 'index'])->name('admin.orders.index');
         Route::patch('/admin/orders/{order}/status', [OrderController::class, 'update'])->name('admin.orders.update');

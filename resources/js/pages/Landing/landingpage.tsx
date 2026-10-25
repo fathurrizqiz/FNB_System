@@ -20,6 +20,14 @@ interface Evaluation {
     comment: string;
 }
 
+interface Outlet {
+    id: number;
+    name: string;
+    address: string;
+    description: string | null;
+    phone: string | null;
+}
+
 interface OrderForm {
     customer_name: string;
     whatsapp_number: string;
@@ -31,6 +39,7 @@ interface OrderForm {
 interface PageProps {
     menuItems: MenuItem[];
     comments: Evaluation[];
+    outlets: Outlet[];
 }
 
 const SHOPEE_URL = 'https://shopee.co.id/product/646511096/54968378757/';
@@ -38,7 +47,7 @@ const SHOPEE_URL = 'https://shopee.co.id/product/646511096/54968378757/';
 /* ============================================================
    COMPONENT
 ============================================================ */
-export default function LandingPage({ menuItems, comments }: PageProps) {
+export default function LandingPage({ menuItems, comments, outlets }: PageProps) {
     const [modalOpen, setModalOpen] = useState(false);
     const [scrolled, setScrolled] = useState(false);
     const form = useForm<OrderForm>({
@@ -181,6 +190,12 @@ export default function LandingPage({ menuItems, comments }: PageProps) {
                                 className="transition-colors hover:text-banana-600"
                             >
                                 Katalog Menu
+                            </a>
+                            <a
+                                href="#outlet"
+                                className="transition-colors hover:text-banana-600"
+                            >
+                                Lokasi Outlet
                             </a>
                             <a
                                 href="#keunggulan"
@@ -532,6 +547,92 @@ export default function LandingPage({ menuItems, comments }: PageProps) {
                     </div>
                 </section>
 
+                {/* ================= OUTLET ================= */}
+                <section
+                    id="outlet"
+                    className="overflow-hidden border-y-2 border-cacao-900 bg-craft-base py-20"
+                >
+                    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                        <div className="mx-auto mb-14 max-w-2xl text-center">
+                            <span className="rounded-md border border-cacao-900 bg-banana-300 px-3 py-1 text-xs font-bold uppercase tracking-widest text-cacao-700">
+                                Temukan Kami
+                            </span>
+                            <h2 className="mt-4 font-editorial text-3xl font-extrabold text-cacao-900 sm:text-5xl">
+                                Makin Dekat, Makin Lumer
+                            </h2>
+                            <p className="mt-3 text-sm font-medium leading-relaxed text-cacao-700 sm:text-base">
+                                Mampir ke outlet Melted Banana di sekitar
+                                tempatmu.
+                            </p>
+                        </div>
+
+                        {outlets.length > 0 ? (
+                            <div className="relative grid grid-cols-1 gap-5 pb-16 sm:grid-cols-2 lg:grid-cols-3 lg:gap-8">
+                                <div
+                                    aria-hidden="true"
+                                    className="absolute left-10 right-10 top-10 hidden border-t-2 border-dashed border-cacao-800/25 lg:block"
+                                />
+                                {outlets.map((outlet, index) => {
+                                    const stairOffsets = [
+                                        'lg:translate-y-0',
+                                        'lg:translate-y-12',
+                                        'lg:translate-y-24',
+                                    ];
+
+                                    return (
+                                        <article
+                                            key={outlet.id}
+                                            className={`craft-shadow relative rounded-2xl border-2 border-cacao-900 bg-white p-6 transition-transform duration-300 hover:-translate-y-1 ${stairOffsets[index % stairOffsets.length]}`}
+                                        >
+                                            <div className="mb-5 flex items-start justify-between gap-4">
+                                                
+                                                <span className="rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+                                                    Aktif
+                                                </span>
+                                            </div>
+                                            <p className="text-xs font-bold uppercase tracking-[0.2em] text-cacao-500">
+                                                Lokasi{' '}
+                                                {String(index + 1).padStart(
+                                                    2,
+                                                    '0',
+                                                )}
+                                            </p>
+                                            <h3 className="mt-2 font-editorial text-xl font-extrabold text-cacao-900">
+                                                {outlet.name}
+                                            </h3>
+                                            <p className="mt-3 flex items-start gap-2 text-sm leading-relaxed text-cacao-700">
+                                                <i className="fa-solid fa-map-pin mt-1 text-banana-600" />
+                                                <span>{outlet.address}</span>
+                                            </p>
+                                            {outlet.description && (
+                                                <p className="mt-3 border-t border-cacao-900/10 pt-3 text-sm leading-relaxed text-cacao-600">
+                                                    {outlet.description}
+                                                </p>
+                                            )}
+                                            {outlet.phone && (
+                                                <p className="mt-4 text-sm font-semibold text-cacao-800">
+                                                    <i className="fa-solid fa-phone mr-2 text-banana-600" />
+                                                    {outlet.phone}
+                                                </p>
+                                            )}
+                                        </article>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <div className="rounded-2xl border-2 border-dashed border-cacao-900/30 bg-white/70 px-6 py-10 text-center">
+                                <i className="fa-solid fa-map-location-dot text-3xl text-banana-600" />
+                                <p className="mt-3 font-editorial text-xl font-bold text-cacao-900">
+                                    Outlet baru segera hadir!
+                                </p>
+                                <p className="mt-1 text-sm text-cacao-700">
+                                    Nantikan lokasi Melted Banana di dekatmu.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </section>
+
                 {/* ================= TESTIMONI ================= */}
                 <section
                     id="testimoni"
@@ -639,13 +740,27 @@ export default function LandingPage({ menuItems, comments }: PageProps) {
                                             Buka Setiap Hari: 10.00 - 21.30 WIB
                                         </span>
                                     </p>
-                                    <p className="flex items-start gap-2">
-                                        <i className="fa-solid fa-location-dot mt-1 text-banana-400" />
-                                        <span>
-                                            Outlet Utama: Ds. Maribaya, Kec.
-                                            Kramat, Kab. Tegal
-                                        </span>
-                                    </p>
+                                    {outlets.length > 0 ? (
+                                        outlets.map((outlet) => (
+                                            <p
+                                                key={outlet.id}
+                                                className="flex items-start gap-2"
+                                            >
+                                                <i className="fa-solid fa-location-dot mt-1 text-banana-400" />
+                                                <span>
+                                                    {outlet.name}: {outlet.address}
+                                                </span>
+                                            </p>
+                                        ))
+                                    ) : (
+                                        <p className="flex items-start gap-2">
+                                            <i className="fa-solid fa-location-dot mt-1 text-banana-400" />
+                                            <span>
+                                                Lokasi outlet akan diumumkan
+                                                segera.
+                                            </span>
+                                        </p>
+                                    )}
                                     <p className="flex items-center gap-2 pt-1">
                                         <i className="fa-solid fa-phone text-banana-400" />
                                         <span>+62 895-3842-23639</span>

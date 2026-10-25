@@ -5,6 +5,7 @@ namespace App\Http\Controllers\LandingPage;
 use App\Http\Controllers\Controller;
 use App\Models\EvaluasiModel;
 use App\Models\MenuModel;
+use App\Models\Outlet;
 use Inertia\Inertia;
 
 class LandingPageController extends Controller
@@ -27,9 +28,15 @@ class LandingPageController extends Controller
             ->limit(6)
             ->get(['id', 'name', 'comment']);
 
+        $outlets = Outlet::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'address', 'description', 'phone']);
+
         return Inertia::render('Landing/landingpage', [
             'menuItems' => $menuItems,
             'comments' => $comments,
+            'outlets' => $outlets,
             'whatsappNumber' => config('services.whatsapp.number'),
         ]);
     }
