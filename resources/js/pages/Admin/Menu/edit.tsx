@@ -1,17 +1,28 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import { useState, useRef, DragEvent, ChangeEvent } from 'react';
-import { store, index } from '@/routes/admin/menu';
+import { index, update } from '@/routes/admin/menu';
 
 /* ---------------- types ---------------- */
 interface FormData {
     name: string;
+    category: string;
     description: string;
     price: string;
     image: File | null;
 }
 
+interface MenuItem {
+    id: number;
+    name: string;
+    category: string;
+    description: string | null;
+    price: number | string;
+    image: string | null;
+}
+
 interface PageProps {
-    menuItem?: FormData;
+    menuItem: MenuItem;
+    categories: string[];
     flash?: {
         success?: string;
         error?: string;
@@ -19,17 +30,19 @@ interface PageProps {
 }
 
 /* ---------------- component ---------------- */
-export default function Edit({ menuItem }: PageProps) {
+export default function Edit({ menuItem, categories }: PageProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [preview, setPreview] = useState<string | null>(null);
     const [dragging, setDragging] = useState(false);
 
-    const { data, setData, post, processing, errors, reset } = useForm<FormData>({
-        name: menuItem?.name || '',
-        description: menuItem?.description || '',
-        price: menuItem?.price || '',
-        image: null,
-    });
+    const { data, setData, post, processing, errors, reset, transform } =
+        useForm<FormData>({
+            name: menuItem.name,
+            category: menuItem.category,
+            description: menuItem.description ?? '',
+            price: String(menuItem.price),
+            image: null,
+        });
 
     /* ---------- image handler ---------- */
     const handleFile = (file: File | null) => {
@@ -72,7 +85,8 @@ export default function Edit({ menuItem }: PageProps) {
     /* ---------- submit ---------- */
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
-        post(store.url(), {
+        transform((formData) => ({ ...formData, _method: 'put' }));
+        post(update.url(menuItem.id), {
             forceFormData: true,
             onSuccess: () => reset(),
         });
@@ -80,7 +94,7 @@ export default function Edit({ menuItem }: PageProps) {
 
     return (
         <>
-            <Head title="Tambah Menu" />
+            <Head title="Edit Menu" />
 
             <div className="mx-auto max-w-4xl px-6 py-10">
                 {/* Breadcrumb */}
@@ -92,16 +106,16 @@ export default function Edit({ menuItem }: PageProps) {
                         Menu
                     </Link>
                     <span>/</span>
-                    <span className="text-black">Tambah Baru</span>
+                    <span className="text-black">Edit</span>
                 </nav>
 
                 {/* Header */}
                 <div className="mb-8">
                     <h1 className="text-3xl font-semibold tracking-tight">
-                        Tambah Menu
+                        Edit Menu
                     </h1>
                     <p className="mt-1 text-sm text-gray-500">
-                        Isi detail menu yang akan ditampilkan di halaman utama.
+                        Perbarui detail menu yang ditampilkan di katalog.
                     </p>
                 </div>
 
@@ -140,6 +154,40 @@ export default function Edit({ menuItem }: PageProps) {
                                 {errors.name && (
                                     <p className="mt-1.5 text-xs text-red-600">
                                         {errors.name}
+                                    </p>
+                                )}
+                            </div>
+
+                            {/* Category */}
+                            <div>
+                                <label
+                                    htmlFor="category"
+                                    className="mb-1.5 block text-sm font-medium"
+                                >
+                                    Kategori{' '}
+                                    <span className="text-red-500">*</span>
+                                </label>
+                                <select
+                                    id="category"
+                                    value={data.category}
+                                    onChange={(e) =>
+                                        setData('category', e.target.value)
+                                    }
+                                    className={`w-full rounded-lg border px-4 py-2.5 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-black/10 ${
+                                        errors.category
+                                            ? 'border-red-400 bg-red-50/50'
+                                            : 'border-gray-300 focus:border-black'
+                                    }`}
+                                >
+                                    {categories.map((category) => (
+                                        <option key={category} value={category}>
+                                            {category}
+                                        </option>
+                                    ))}
+                                </select>
+                                {errors.category && (
+                                    <p className="mt-1.5 text-xs text-red-600">
+                                        {errors.category}
                                     </p>
                                 )}
                             </div>
@@ -374,7 +422,7 @@ export default function Edit({ menuItem }: PageProps) {
                                 </>
                             ) : (
                                 <>
-                                    Simpan Menu
+                                    Simpan Perubahan
                                     <svg
                                         className="h-4 w-4"
                                         fill="none"

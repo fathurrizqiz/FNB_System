@@ -9,6 +9,7 @@ import { order as createOrder } from '@/routes/menu';
 interface MenuItem {
     id: number;
     name: string;
+    category: string;
     description: string | null;
     price: number | string;
     image: string | null;
@@ -50,6 +51,7 @@ const SHOPEE_URL = 'https://shopee.co.id/product/646511096/54968378757/';
 export default function LandingPage({ menuItems, comments, outlets }: PageProps) {
     const [modalOpen, setModalOpen] = useState(false);
     const [scrolled, setScrolled] = useState(false);
+    const [activeCategory, setActiveCategory] = useState('Semua');
     const form = useForm<OrderForm>({
         customer_name: '',
         whatsapp_number: '',
@@ -77,8 +79,17 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
     /* computed */
     const selectedMenuId = form.data.items[0]?.menu_id;
     const selectedItem = menuItems.find((item) => item.id === selectedMenuId);
+    const featuredMenu = menuItems[0];
     const quantity = form.data.items[0]?.quantity ?? 1;
     const total = selectedItem ? Number(selectedItem.price) * quantity : 0;
+    const categories = [
+        'Semua',
+        ...new Set(menuItems.map((item) => item.category)),
+    ];
+    const filteredMenuItems =
+        activeCategory === 'Semua'
+            ? menuItems
+            : menuItems.filter((item) => item.category === activeCategory);
 
     /* handlers */
     const openOrderModal = (presetId?: number) => {
@@ -147,10 +158,10 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
 
     return (
         <>
-            <Head title="Melted Banana — Kripik Pisang Coklat Lumer">
+            <Head title="Melted Banana — Camilan Manis & Gurih">
                 <meta
                     name="description"
-                    content="Kelezatan pisang matang dipadu dark chocolate lumer."
+                    content="Temukan pilihan camilan manis dan gurih untuk menemani waktu santai."
                 />
             </Head>
 
@@ -173,7 +184,7 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                     MELTED BANANA
                                 </span>
                                 <span className="mt-0.5 text-[10px] font-bold uppercase tracking-widest text-cacao-600">
-                                    Kripik Pisang Coklat Lumer
+                                    Camilan Manis & Gurih
                                 </span>
                             </div>
                         </a>
@@ -230,19 +241,17 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                         {/* left */}
                         <div className="space-y-6 lg:col-span-7">
                             <h1 className="font-editorial text-4xl font-extrabold leading-[1.1] tracking-tight text-cacao-900 sm:text-6xl">
-                                Kelezatan Pisang Matang Dipadu{' '}
+                                Pilihan Camilan{' '}
                                 <span className="italic font-normal underline decoration-banana-400 decoration-4 underline-offset-4">
-                                    Dark Chocolate
+                                    Manis & Gurih
                                 </span>{' '}
-                                Lumer.
+                                untuk Setiap Suasana.
                             </h1>
 
                             <p className="max-w-2xl text-base font-medium leading-relaxed text-cacao-700 sm:text-lg">
-                                Kami memadukan pisang segar pilihan dengan
-                                lelehan racikan dark chocolate pahit-manis
-                                melimpah. Bukan sekadar gorengan biasa, tapi
-                                camilan pencuci mulut berkelas dengan standar
-                                kualitas tinggi.
+                                Temukan beragam pilihan rasa, dari camilan
+                                manis hingga dimsum gurih, lalu pesan dengan
+                                mudah.
                             </p>
 
                             <div className="flex flex-col items-stretch gap-4 pt-4 sm:flex-row sm:items-center">
@@ -282,18 +291,18 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                             <div className="grid grid-cols-2 gap-4 border-t-2 border-cacao-800/20 pt-8">
                                 <div>
                                     <p className="font-editorial text-3xl font-extrabold text-cacao-900">
-                                        100%
+                                        Manis
                                     </p>
                                     <p className="mt-1 text-xs font-semibold text-cacao-600">
-                                        Dark Chocolate
+                                        Pilihan Manis
                                     </p>
                                 </div>
                                 <div>
                                     <p className="font-editorial text-3xl font-extrabold text-cacao-900">
-                                        Aman
+                                        Gurih
                                     </p>
                                     <p className="mt-1 text-xs font-semibold text-cacao-600">
-                                        Tidak Bikin Eneg
+                                        Dimsum
                                     </p>
                                 </div>
                             </div>
@@ -304,23 +313,26 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                             <div className="relative mx-auto max-w-md lg:max-w-none">
                                 <div className="craft-shadow rotate-[1.5deg] rounded-2xl border-2 border-cacao-900 bg-white p-4 transition-transform hover:rotate-0">
                                     <div className="relative h-80 overflow-hidden rounded-xl bg-cacao-900 sm:h-96">
-                                        <img
-                                            src="/assets/img/melted banana.jpeg"
-                                            alt="Melted Banana Premium Visual"
-                                            className="h-full w-full object-cover object-center"
-                                            onError={(e) => {
-                                                (e.target as HTMLImageElement).src =
-                                                    'https://placehold.co/800x800/23150e/fce48b?text=MELTED+BANANA';
-                                            }}
-                                        />
+                                        {featuredMenu?.image ? (
+                                            <img
+                                                src={featuredMenu.image}
+                                                alt={featuredMenu.name}
+                                                className="h-full w-full object-cover object-center"
+                                            />
+                                        ) : (
+                                            <div className="flex h-full items-center justify-center text-banana-300">
+                                                <i className="fa-solid fa-utensils text-6xl" />
+                                            </div>
+                                        )}
                                         <div className="absolute inset-0 bg-linear-to-t from-cacao-900/90 via-transparent to-transparent" />
 
                                         <div className="absolute bottom-4 left-4 right-4 text-white">
                                             <p className="text-xs font-bold uppercase tracking-widest text-banana-400">
-                                                Melted Banana
+                                                Menu Unggulan
                                             </p>
                                             <h3 className="mt-0.5 font-editorial text-2xl font-bold text-white">
-                                                Original Dark Choco
+                                                {featuredMenu?.name ??
+                                                    'Temukan menu favoritmu'}
                                             </h3>
                                         </div>
                                     </div>
@@ -341,7 +353,7 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                     <div>
                                         <i className="fa-solid fa-fire text-lg text-amber-600" />
                                         <p className="mt-1 font-editorial text-xs font-black uppercase leading-tight">
-                                            Coklat Menutup Sempurna!
+                                            Gurih luar dalam
                                         </p>
                                     </div>
                                 </div>
@@ -361,7 +373,7 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                 <div className="craft-shadow-gold rotate-[-1.5deg] rounded-2xl border-2 border-banana-400 bg-cacao-900 p-3">
                                     <img
                                         src="/assets/img/antar.jpeg"
-                                        alt="Dark Chocolate Melt Process"
+                                        alt="Persiapan menu"
                                         className="h-72 w-full rounded-xl object-cover"
                                         onError={(e) => {
                                             (e.target as HTMLImageElement).src =
@@ -373,7 +385,7 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
 
                             <div className="space-y-6 lg:col-span-7">
                                 <span className="rounded-md border border-banana-400/40 bg-cacao-900 px-3 py-1.5 text-xs font-bold uppercase tracking-widest text-banana-400">
-                                    Cerita Melted Banana
+                                    Cerita Kami
                                 </span>
 
                                 <h2 className="font-editorial text-3xl font-extrabold leading-tight text-white sm:text-4xl">
@@ -381,30 +393,33 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                 </h2>
 
                                 <p className="text-base font-normal leading-relaxed text-craft-base">
-                                    Berawal dari rasa penasaran terhadap perpaduan rasa gurih dan manis, indonesia Tingkat konsumsi buah pisang di Indonesia menduduki posisi pertama dibandingkan dengan komoditas buah tropis lainnya. Berdasarkan data dari Badan Pusat Statistik (BPS) mencapai 30,45 % perhari. oleh karena itu menjadikan pisang sebagai bahan baku utama untuk membuat camilan yang unik dan menarik. Melted Banana hadir sebagai inovasi camilan pisang goreng dengan lelehan dark chocolate yang lumer di mulut, memberikan pengalaman rasa yang berbeda dan memuaskan bagi para pecinta camilan manis.
+                                    Kami percaya perpaduan rasa yang pas membuat
+                                    setiap camilan lebih berkesan. Dari pilihan
+                                    manis dengan cokelat lumer hingga dimsum
+                                    gurih, setiap menu disiapkan untuk menemani
+                                    harimu.
                                 </p>
 
                                 <div className="grid grid-cols-1 gap-4 pt-2 sm:grid-cols-2">
                                     <div className="rounded-xl border border-cacao-700 bg-cacao-900/60 p-4">
                                         <i className="fa-solid fa-leaf mb-2 text-xl text-banana-400" />
                                         <h4 className="text-sm font-bold text-white">
-                                            Pisang Gepuk Matang Alami
+                                            Rasa yang Seimbang
                                         </h4>
                                         <p className="mt-1 text-xs text-craft-accent">
-                                            Dipilih pada puncak kematangan
-                                            alami agar manisnya pas dan
-                                            teksturnya lembut.
+                                            Pilihan rasa manis dan gurih untuk
+                                            selera yang berbeda.
                                         </p>
                                     </div>
 
                                     <div className="rounded-xl border border-cacao-700 bg-cacao-900/60 p-4">
                                         <i className="fa-solid fa-mortar-pestle mb-2 text-xl text-banana-400" />
                                         <h4 className="text-sm font-bold text-white">
-                                            Bittersweet Balance
+                                            Dibuat dengan Perhatian
                                         </h4>
                                         <p className="mt-1 text-xs text-craft-accent">
-                                            Perpaduan pahit gurih yang
-                                            menetralisir rasa manis berlebih.
+                                            Setiap menu disiapkan agar nikmat
+                                            saat sampai di tanganmu.
                                         </p>
                                     </div>
                                 </div>
@@ -424,7 +439,7 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                 Katalog Pilihan
                             </span>
                             <h2 className="mt-3 font-editorial text-3xl font-extrabold text-cacao-900 sm:text-5xl">
-                                Menu Spesial Melted Banana
+                                Menu untuk Setiap Seleramu
                             </h2>
                         </div>
                         <p className="max-w-md text-sm font-medium text-cacao-700">
@@ -443,51 +458,82 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                             </p>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                            {menuItems.map((item) => (
-                                <article
-                                    key={item.id}
-                                    className="craft-shadow flex flex-col overflow-hidden rounded-2xl border-2 border-cacao-900 bg-white"
-                                >
-                                    <div className="h-56 bg-craft-base">
-                                        {item.image ? (
-                                            <img
-                                                src={item.image}
-                                                alt={item.name}
-                                                className="h-full w-full object-cover"
-                                            />
-                                        ) : (
-                                            <div className="flex h-full items-center justify-center text-cacao-700">
-                                                <i className="fa-solid fa-utensils text-4xl" />
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="flex flex-1 flex-col p-5">
-                                        <div className="flex items-start justify-between gap-3">
-                                            <h3 className="font-editorial text-xl font-extrabold text-cacao-900">
-                                                {item.name}
-                                            </h3>
-                                            <span className="shrink-0 rounded-md border border-cacao-900 bg-banana-100 px-2.5 py-1 font-bold text-cacao-900">
-                                                Rp{' '}
-                                                {Number(item.price).toLocaleString('id-ID')}
-                                            </span>
+                        <>
+                            <div
+                                aria-label="Filter kategori menu"
+                                className="mb-8 flex flex-wrap gap-2"
+                            >
+                                {categories.map((category) => (
+                                    <button
+                                        key={category}
+                                        type="button"
+                                        onClick={() =>
+                                            setActiveCategory(category)
+                                        }
+                                        aria-pressed={activeCategory === category}
+                                        className={`rounded-full border-2 px-4 py-2 text-sm font-bold transition-colors ${
+                                            activeCategory === category
+                                                ? 'border-cacao-900 bg-cacao-900 text-banana-300'
+                                                : 'border-cacao-900/20 bg-white text-cacao-800 hover:border-cacao-900'
+                                        }`}
+                                    >
+                                        {category}
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                                {filteredMenuItems.map((item) => (
+                                    <article
+                                        key={item.id}
+                                        className="craft-shadow flex flex-col overflow-hidden rounded-2xl border-2 border-cacao-900 bg-white"
+                                    >
+                                        <div className="h-56 bg-craft-base">
+                                            {item.image ? (
+                                                <img
+                                                    src={item.image}
+                                                    alt={item.name}
+                                                    className="h-full w-full object-cover"
+                                                />
+                                            ) : (
+                                                <div className="flex h-full items-center justify-center text-cacao-700">
+                                                    <i className="fa-solid fa-utensils text-4xl" />
+                                                </div>
+                                            )}
                                         </div>
-                                        {item.description && (
-                                            <p className="mt-3 flex-1 text-sm leading-relaxed text-cacao-700">
-                                                {item.description}
-                                            </p>
-                                        )}
-                                        <button
-                                            onClick={() => openOrderModal(item.id)}
-                                            className="mt-5 bg-amber-700 cursor-pointer hover:bg-amber-900 flex w-full items-center justify-center gap-2 rounded-xl border border-cacao-900 bg-cacao-800 py-3 text-sm font-bold text-white transition-colors hover:bg-cacao-900"
-                                        >
-                                            <i className="fa-solid fa-cart-plus" />
-                                            <span>Pesan Menu Ini</span>
-                                        </button>
-                                    </div>
-                                </article>
-                            ))}
-                        </div>
+                                        <div className="flex flex-1 flex-col p-5">
+                                            <span className="mb-3 w-fit rounded-md border border-cacao-900/20 bg-craft-base px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-cacao-700">
+                                                {item.category}
+                                            </span>
+                                            <div className="flex items-start justify-between gap-3">
+                                                <h3 className="font-editorial text-xl font-extrabold text-cacao-900">
+                                                    {item.name}
+                                                </h3>
+                                                <span className="shrink-0 rounded-md border border-cacao-900 bg-banana-100 px-2.5 py-1 font-bold text-cacao-900">
+                                                    Rp{' '}
+                                                    {Number(
+                                                        item.price,
+                                                    ).toLocaleString('id-ID')}
+                                                </span>
+                                            </div>
+                                            {item.description && (
+                                                <p className="mt-3 flex-1 text-sm leading-relaxed text-cacao-700">
+                                                    {item.description}
+                                                </p>
+                                            )}
+                                            <button
+                                                onClick={() =>
+                                                    openOrderModal(item.id)
+                                                }
+                                                className="mt-5 bg-amber-700 cursor-pointer hover:bg-amber-900 flex w-full items-center justify-center gap-2 rounded-xl border border-cacao-900 bg-cacao-800 py-3 text-sm font-bold text-white transition-colors hover:bg-cacao-900"
+                                            >
+                                                <i className="fa-solid fa-cart-plus" />
+                                                <span>Pesan Menu Ini</span>
+                                            </button>
+                                        </div>
+                                    </article>
+                                ))}
+                            </div>
+                        </>
                     )}
                 </section>
 
@@ -499,7 +545,7 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                         <div className="mx-auto mb-12 max-w-2xl text-center">
                             <h2 className="font-editorial text-3xl font-extrabold text-cacao-900">
-                                Standar Kualitas Melted Banana
+                                Standar Kualitas Menu Kami
                             </h2>
                             <p className="mt-2 text-sm font-medium text-cacao-700">
                                 Prinsip sederhana yang membuat rasa produk kami
@@ -511,20 +557,20 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                             {[
                                 {
                                     num: '1',
-                                    title: 'Selalu Fresh Digoreng',
-                                    desc: 'Pisang hanya digoreng dan disiram cokelat setelah pesanan Anda masuk untuk menjaga kehangatan dan krispi luar.',
+                                    title: 'Disiapkan Saat Dipesan',
+                                    desc: 'Menu disiapkan setelah pesanan masuk untuk menjaga kehangatan dan kualitas saat diterima.',
                                     tilt: 'rotate-[-1.5deg]',
                                 },
                                 {
                                     num: '2',
-                                    title: 'Bahan Terjamin Halal',
-                                    desc: 'Seluruh bahan baku dari cokelat, minyak nabati, hingga topping telah bersertifikat Halal & higienis.',
+                                    title: 'Bahan Berkualitas',
+                                    desc: 'Bahan dipilih dengan cermat dan diolah secara higienis untuk setiap menu.',
                                     tilt: '',
                                 },
                                 {
                                     num: '3',
-                                    title: 'Kemasan Aman & Clean',
-                                    desc: 'Box khusus food-grade anti bocor untuk menjaga lelehan cokelat tidak tumpah selama perjalanan pengiriman.',
+                                    title: 'Kemasan Aman',
+                                    desc: 'Kemasan food-grade membantu menjaga kualitas menu selama perjalanan.',
                                     tilt: 'rotate-[1.5deg]',
                                 },
                             ].map((f) => (
@@ -558,11 +604,10 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                 Temukan Kami
                             </span>
                             <h2 className="mt-4 font-editorial text-3xl font-extrabold text-cacao-900 sm:text-5xl">
-                                Makin Dekat, Makin Lumer
+                                Temukan Outlet Terdekat
                             </h2>
                             <p className="mt-3 text-sm font-medium leading-relaxed text-cacao-700 sm:text-base">
-                                Mampir ke outlet Melted Banana di sekitar
-                                tempatmu.
+                                Mampir ke outlet kami di sekitar tempatmu.
                             </p>
                         </div>
 
@@ -626,7 +671,7 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                     Outlet baru segera hadir!
                                 </p>
                                 <p className="mt-1 text-sm text-cacao-700">
-                                    Nantikan lokasi Melted Banana di dekatmu.
+                                    Nantikan lokasi outlet kami di dekatmu.
                                 </p>
                             </div>
                         )}
@@ -705,10 +750,9 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                     </span>
                                 </div>
                                 <p className="max-w-sm text-xs leading-relaxed text-craft-accent sm:text-sm">
-                                    Pelopor camilan pisang goreng dark
-                                    chocolate lumer dengan rasa bittersweet
-                                    autentik. Dibuat fresh setiap hari dengan
-                                    bahan-bahan kualitas terbaik.
+                                    Pilihan camilan manis dan gurih untuk
+                                    menemani waktu santai, dibuat dengan bahan
+                                    pilihan dan perhatian pada kualitas.
                                 </p>
                                 <div className="flex items-center gap-3 pt-2">
                                     {[
@@ -945,7 +989,7 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                         maxLength={1000}
                                         value={form.data.notes}
                                         onChange={(e) => form.setData('notes', e.target.value)}
-                                        placeholder="Contoh: Cokelat dipisah, tidak pakai oreo, dll."
+                                        placeholder="Contoh: saus dipisah, tanpa topping, dll."
                                         className="w-full rounded-xl border-2 border-cacao-900 px-4 py-3 text-sm font-medium focus:bg-white focus:outline-none"
                                     />
                                 </div>

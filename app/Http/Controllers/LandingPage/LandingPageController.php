@@ -18,6 +18,7 @@ class LandingPageController extends Controller
             ->map(fn (MenuModel $menu): array => [
                 'id' => $menu->id,
                 'name' => $menu->name,
+                'category' => $menu->category,
                 'description' => $menu->description,
                 'price' => $menu->price,
                 'image' => $menu->image ? '/storage/'.$menu->image : null,

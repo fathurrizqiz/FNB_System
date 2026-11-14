@@ -29,6 +29,7 @@ class MenuOrderTest extends TestCase
                 ->has('menuItems', 1)
                 ->where('menuItems.0.id', $menu->id)
                 ->where('menuItems.0.name', 'Pisang Cokelat')
+                ->where('menuItems.0.category', 'Pisang')
                 ->where('whatsappNumber', '62895384223639'));
     }
 
@@ -131,6 +132,7 @@ class MenuOrderTest extends TestCase
     {
         return MenuModel::query()->create([
             'name' => 'Pisang Cokelat',
+            'category' => 'Pisang',
             'description' => 'Pisang dengan cokelat lumer.',
             'price' => 12500,
         ]);

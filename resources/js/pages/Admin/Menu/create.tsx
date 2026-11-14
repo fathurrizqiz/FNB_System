@@ -5,19 +5,25 @@ import { store, index } from '@/routes/admin/menu';
 /* ---------------- types ---------------- */
 interface FormData {
     name: string;
+    category: string;
     description: string;
     price: string;
     image: File | null;
 }
 
+interface PageProps {
+    categories: string[];
+}
+
 /* ---------------- component ---------------- */
-export default function Create() {
+export default function Create({ categories }: PageProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [preview, setPreview] = useState<string | null>(null);
     const [dragging, setDragging] = useState(false);
 
     const { data, setData, post, processing, errors, reset } = useForm<FormData>({
         name: '',
+        category: 'Pisang',
         description: '',
         price: '',
         image: null,
@@ -132,6 +138,40 @@ export default function Create() {
                                 {errors.name && (
                                     <p className="mt-1.5 text-xs text-red-600">
                                         {errors.name}
+                                    </p>
+                                )}
+                            </div>
+
+                            {/* Category */}
+                            <div>
+                                <label
+                                    htmlFor="category"
+                                    className="mb-1.5 block text-sm font-medium"
+                                >
+                                    Kategori{' '}
+                                    <span className="text-red-500">*</span>
+                                </label>
+                                <select
+                                    id="category"
+                                    value={data.category}
+                                    onChange={(e) =>
+                                        setData('category', e.target.value)
+                                    }
+                                    className={`w-full rounded-lg border px-4 py-2.5 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-black/10 ${
+                                        errors.category
+                                            ? 'border-red-400 bg-red-50/50'
+                                            : 'border-gray-300 focus:border-black'
+                                    }`}
+                                >
+                                    {categories.map((category) => (
+                                        <option key={category} value={category}>
+                                            {category}
+                                        </option>
+                                    ))}
+                                </select>
+                                {errors.category && (
+                                    <p className="mt-1.5 text-xs text-red-600">
+                                        {errors.category}
                                     </p>
                                 )}
                             </div>

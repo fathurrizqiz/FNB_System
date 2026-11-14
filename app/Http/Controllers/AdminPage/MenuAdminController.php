@@ -7,6 +7,7 @@ use App\Models\MenuModel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class MenuAdminController extends Controller
@@ -22,7 +23,9 @@ class MenuAdminController extends Controller
 
     public function create()
     {
-        return Inertia::render('Admin/Menu/create');
+        return Inertia::render('Admin/Menu/create', [
+            'categories' => MenuModel::CATEGORIES,
+        ]);
     }
 
     public function store(Request $request)
@@ -30,9 +33,13 @@ class MenuAdminController extends Controller
         // Validate the request data
         $validatedData = $request->validate([
             'name' => 'required|string|max:255',
+            'category' => ['required', 'string', Rule::in(MenuModel::CATEGORIES)],
             'description' => 'nullable|string',
             'price' => 'required|numeric|min:0',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+        ], [
+            'category.required' => 'Pilih kategori menu.',
+            'category.in' => 'Kategori menu tidak valid.',
         ]);
 
         if ($request->hasFile('image')) {
@@ -53,6 +60,7 @@ class MenuAdminController extends Controller
 
         return Inertia::render('Admin/Menu/edit', [
             'menuItem' => $menuItem,
+            'categories' => MenuModel::CATEGORIES,
         ]);
     }
 
@@ -61,9 +69,13 @@ class MenuAdminController extends Controller
         // Validate the request data
         $validatedData = $request->validate([
             'name' => 'required|string|max:255',
+            'category' => ['required', 'string', Rule::in(MenuModel::CATEGORIES)],
             'description' => 'nullable|string',
             'price' => 'required|numeric|min:0',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+        ], [
+            'category.required' => 'Pilih kategori menu.',
+            'category.in' => 'Kategori menu tidak valid.',
         ]);
 
         $menuItem = MenuModel::findOrFail($id);

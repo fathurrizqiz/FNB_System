@@ -5,6 +5,7 @@ import { create, destroy, edit } from "@/routes/admin/menu";
 interface MenuItem {
     id: number;
     name: string;
+    category: string;
     description: string | null;
     price: number | string;
     image: string | null;
@@ -136,6 +137,9 @@ export default function Index({ menuItems, flash }: PageProps) {
 
                                 {/* Body */}
                                 <div className="p-4">
+                                    <span className="mb-2 inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
+                                        {item.category}
+                                    </span>
                                     <h2 className="font-semibold leading-tight">
                                         {item.name}
                                     </h2>

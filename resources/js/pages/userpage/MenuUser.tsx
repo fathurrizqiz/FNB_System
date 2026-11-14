@@ -11,7 +11,7 @@ interface MenuItem {
     description: string | null;
     price: number | string;
     image: string | null;
-    category?: string | null;
+    category: string;
 }
 
 interface CartLine extends MenuItem {
@@ -390,6 +390,9 @@ function MenuCard({
 
             {/* Body */}
             <div className="mt-2.5 flex flex-1 flex-col md:mt-3">
+                <span className="mb-1.5 w-fit rounded-full bg-[#064E3B]/8 px-2.5 py-1 text-[9px] font-medium uppercase tracking-widest text-[#064E3B]/70">
+                    {item.category}
+                </span>
                 <h3 className="font-serif text-sm leading-tight tracking-[-0.01em] md:text-base">
                     {item.name}
                 </h3>
