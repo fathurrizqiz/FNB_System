@@ -16,6 +16,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string|null $unit_price
  * @property string|null $order_number
  * @property string|null $status
+ * @property int|null $voucher_id
+ * @property string $discount_amount
  */
 class OrderMenu extends Model
 {
@@ -31,6 +33,8 @@ class OrderMenu extends Model
         'unit_price',
         'order_number',
         'status',
+        'voucher_id',
+        'discount_amount',
     ];
 
     protected function casts(): array
@@ -38,11 +42,17 @@ class OrderMenu extends Model
         return [
             'quantity' => 'integer',
             'unit_price' => 'decimal:2',
+            'discount_amount' => 'decimal:2',
         ];
     }
 
     public function menu(): BelongsTo
     {
         return $this->belongsTo(MenuModel::class, 'menu_id');
+    }
+
+    public function voucher(): BelongsTo
+    {
+        return $this->belongsTo(Voucher::class);
     }
 }

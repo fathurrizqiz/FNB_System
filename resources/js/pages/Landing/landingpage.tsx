@@ -1,7 +1,8 @@
-import { Head, Link, useForm } from '@inertiajs/react';
-import { useEffect, useState } from 'react';
-import { view as evaluasiPage } from '@/routes/evaluasi';
-import { order as createOrder } from '@/routes/menu';
+import { Head, Link, useForm } from "@inertiajs/react";
+import { useEffect, useState } from "react";
+import { view as evaluasiPage } from "@/routes/evaluasi";
+import { order as createOrder } from "@/routes/menu";
+import { store as requestVoucher } from "@/routes/vouchers";
 
 /* ============================================================
    TYPES
@@ -13,12 +14,24 @@ interface MenuItem {
     description: string | null;
     price: number | string;
     image: string | null;
+    averageRating: number | null;
+    ratingCount: number;
 }
 
 interface Evaluation {
     id: number;
     name: string;
     comment: string;
+    rating: number | null;
+    menuName: string | null;
+}
+
+interface VoucherCampaign {
+    id: number;
+    name: string;
+    discount_type: "fixed" | "percentage";
+    discount_value: string | number;
+    min_items: number;
 }
 
 interface Outlet {
@@ -35,46 +48,71 @@ interface OrderForm {
     items: { menu_id: number; quantity: number }[];
     delivery_method: string;
     notes: string;
+    voucher_code: string;
 }
 
 interface PageProps {
     menuItems: MenuItem[];
     comments: Evaluation[];
     outlets: Outlet[];
+    voucherCampaigns: VoucherCampaign[];
+    voucherCode: string | null;
+    flash?: {
+        success?: string;
+    };
 }
 
-const SHOPEE_URL = 'https://shopee.co.id/product/646511096/54968378757/';
+const SHOPEE_URL = "https://shopee.co.id/product/646511096/54968378757/";
 
 /* ============================================================
    COMPONENT
 ============================================================ */
-export default function LandingPage({ menuItems, comments, outlets }: PageProps) {
+export default function LandingPage({
+    menuItems,
+    comments,
+    outlets,
+    voucherCampaigns,
+    voucherCode,
+}: PageProps) {
     const [modalOpen, setModalOpen] = useState(false);
+    const [voucherModalOpen, setVoucherModalOpen] = useState(false);
     const [scrolled, setScrolled] = useState(false);
-    const [activeCategory, setActiveCategory] = useState('Semua');
+    const [activeCategory, setActiveCategory] = useState("Semua");
     const form = useForm<OrderForm>({
-        customer_name: '',
-        whatsapp_number: '',
+        customer_name: "",
+        whatsapp_number: "",
         items: [{ menu_id: menuItems[0]?.id ?? 0, quantity: 1 }],
-        delivery_method: 'Takeaway / Ambil Sendiri',
-        notes: '',
+        delivery_method: "Takeaway / Ambil Sendiri",
+        notes: "",
+        voucher_code: "",
+    });
+    const voucherForm = useForm({
+        voucher_campaign_id: 0,
+        whatsapp_number: "",
     });
 
     /* scroll state */
     useEffect(() => {
         const onScroll = () => setScrolled(window.scrollY > 12);
         onScroll();
-        window.addEventListener('scroll', onScroll, { passive: true });
-        return () => window.removeEventListener('scroll', onScroll);
+        window.addEventListener("scroll", onScroll, { passive: true });
+        return () => window.removeEventListener("scroll", onScroll);
     }, []);
 
     /* lock body scroll */
     useEffect(() => {
-        document.body.style.overflow = modalOpen ? 'hidden' : '';
+        document.body.style.overflow =
+            modalOpen || voucherModalOpen ? "hidden" : "";
         return () => {
-            document.body.style.overflow = '';
+            document.body.style.overflow = "";
         };
-    }, [modalOpen]);
+    }, [modalOpen, voucherModalOpen]);
+
+    useEffect(() => {
+        if (voucherCode) {
+            form.setData("voucher_code", voucherCode);
+        }
+    }, [voucherCode]);
 
     /* computed */
     const selectedMenuId = form.data.items[0]?.menu_id;
@@ -83,11 +121,11 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
     const quantity = form.data.items[0]?.quantity ?? 1;
     const total = selectedItem ? Number(selectedItem.price) * quantity : 0;
     const categories = [
-        'Semua',
+        "Semua",
         ...new Set(menuItems.map((item) => item.category)),
     ];
     const filteredMenuItems =
-        activeCategory === 'Semua'
+        activeCategory === "Semua"
             ? menuItems
             : menuItems.filter((item) => item.category === activeCategory);
 
@@ -98,7 +136,7 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
         }
 
         form.clearErrors();
-        form.setData('items', [
+        form.setData("items", [
             {
                 menu_id: presetId ?? selectedMenuId ?? menuItems[0].id,
                 quantity: 1,
@@ -107,9 +145,12 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
         setModalOpen(true);
     };
 
+    const login = () => {
+        window.location.href = "/login";
+    };
     const adjustQty = (delta: number) => {
         if (selectedItem) {
-            form.setData('items', [
+            form.setData("items", [
                 {
                     menu_id: selectedItem.id,
                     quantity: Math.min(100, Math.max(1, quantity + delta)),
@@ -120,7 +161,7 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
 
     const submitOrder = (e: React.FormEvent) => {
         e.preventDefault();
-        const whatsappWindow = window.open('about:blank', '_blank');
+        const whatsappWindow = window.open("about:blank", "_blank");
 
         form.post(createOrder.url(), {
             preserveScroll: true,
@@ -128,16 +169,16 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                 const flash = page.props.flash;
                 const whatsappUrl =
                     flash &&
-                    typeof flash === 'object' &&
-                    'whatsappUrl' in flash &&
-                    typeof flash.whatsappUrl === 'string'
+                    typeof flash === "object" &&
+                    "whatsappUrl" in flash &&
+                    typeof flash.whatsappUrl === "string"
                         ? flash.whatsappUrl
                         : null;
 
                 if (!whatsappUrl) {
                     whatsappWindow?.close();
                     window.alert(
-                        'Pesanan sudah tersimpan, tetapi tautan WhatsApp tidak tersedia. Silakan hubungi outlet secara manual.',
+                        "Pesanan sudah tersimpan, tetapi tautan WhatsApp tidak tersedia. Silakan hubungi outlet secara manual.",
                     );
                     return;
                 }
@@ -149,16 +190,37 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                     window.location.assign(whatsappUrl);
                 }
 
-                form.reset('customer_name', 'whatsapp_number', 'notes');
+                form.reset(
+                    "customer_name",
+                    "whatsapp_number",
+                    "notes",
+                    "voucher_code",
+                );
                 setModalOpen(false);
             },
             onError: () => whatsappWindow?.close(),
         });
     };
 
+    const openVoucherModal = (campaignId: number) => {
+        voucherForm.clearErrors();
+        voucherForm.setData("voucher_campaign_id", campaignId);
+        setVoucherModalOpen(true);
+    };
+
+    const submitVoucherRequest = (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        voucherForm.post(requestVoucher.url(), {
+            onSuccess: () => {
+                voucherForm.reset();
+                setVoucherModalOpen(false);
+            },
+        });
+    };
+
     return (
         <>
-            <Head title="Melted Banana — Camilan Manis & Gurih">
+            <Head title="Vampire Stand — Camilan Manis & Gurih">
                 <meta
                     name="description"
                     content="Temukan pilihan camilan manis dan gurih untuk menemani waktu santai."
@@ -170,18 +232,18 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                 <header
                     className={`sticky top-0 z-40 border-b-2 border-cacao-800 px-4 py-4 backdrop-blur-md transition-all duration-300 sm:px-8 ${
                         scrolled
-                            ? 'bg-craft-light/95 shadow-[0_4px_0_0_rgba(35,21,14,0.08)]'
-                            : 'bg-craft-light/90'
+                            ? "bg-craft-light/95 shadow-[0_4px_0_0_rgba(35,21,14,0.08)]"
+                            : "bg-craft-light/90"
                     }`}
                 >
                     <div className="mx-auto flex max-w-7xl items-center justify-between">
                         <a href="#" className="group flex items-center gap-3">
                             <div className="craft-shadow-sm flex h-11 w-11 items-center justify-center rounded-xl bg-cacao-800 font-editorial text-xl font-black text-banana-400 transition-all group-hover:bg-cacao-700">
-                                MB
+                                VS
                             </div>
                             <div className="flex flex-col">
                                 <span className="font-editorial text-xl font-extrabold leading-none tracking-tight text-cacao-900">
-                                    MELTED BANANA
+                                    VAMPIRE STAND
                                 </span>
                                 <span className="mt-0.5 text-[10px] font-bold uppercase tracking-widest text-cacao-600">
                                     Camilan Manis & Gurih
@@ -203,6 +265,12 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                 Katalog Menu
                             </a>
                             <a
+                                href="#voucher"
+                                className="transition-colors hover:text-banana-600"
+                            >
+                                Voucher
+                            </a>
+                            <a
                                 href="#outlet"
                                 className="transition-colors hover:text-banana-600"
                             >
@@ -222,16 +290,16 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                             </a>
                         </nav>
 
-                        <button
-                            onClick={() => openOrderModal()}
+                        {/* <button
+                            onClick={() => login()}
                             className="craft-shadow-sm bg-yellow-400 flex items-center gap-2 rounded-xl border-2 border-cacao-900 bg-banana-400 px-5 py-2.5 text-sm font-bold text-cacao-900 transition-all hover:bg-banana-500 active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
                         >
                             <i className="fa-brands fa-whatsapp text-lg" />
                             <span className="hidden sm:inline">
-                                Pesan Sekarang
+                                Login Admin
                             </span>
-                            <span className="sm:hidden">Pesan</span>
-                        </button>
+                            <span className="sm:hidden">Admin</span>
+                        </button> */}
                     </div>
                 </header>
 
@@ -241,17 +309,16 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                         {/* left */}
                         <div className="space-y-6 lg:col-span-7">
                             <h1 className="font-editorial text-4xl font-extrabold leading-[1.1] tracking-tight text-cacao-900 sm:text-6xl">
-                                Pilihan Camilan{' '}
+                                Pilihan Camilan{" "}
                                 <span className="italic font-normal underline decoration-banana-400 decoration-4 underline-offset-4">
                                     Manis & Gurih
-                                </span>{' '}
+                                </span>{" "}
                                 untuk Setiap Suasana.
                             </h1>
 
                             <p className="max-w-2xl text-base font-medium leading-relaxed text-cacao-700 sm:text-lg">
-                                Temukan beragam pilihan rasa, dari camilan
-                                manis hingga dimsum gurih, lalu pesan dengan
-                                mudah.
+                                Temukan beragam pilihan rasa, dari camilan manis
+                                hingga dimsum gurih, lalu pesan dengan mudah.
                             </p>
 
                             <div className="flex flex-col items-stretch gap-4 pt-4 sm:flex-row sm:items-center">
@@ -263,17 +330,17 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                     <i className="fa-solid fa-arrow-down-long" />
                                 </a>
 
-                                <button
+                                {/* <button
                                     onClick={() => openOrderModal()}
                                     className="craft-shadow cursor-pointer flex items-center justify-center gap-3 rounded-xl border-2 border-cacao-900 bg-white px-8 py-4 text-center font-bold text-cacao-900 transition-all hover:bg-craft-base active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
                                 >
                                     <i className="fa-brands fa-whatsapp text-xl text-emerald-600" />
                                     <span>Pesan Langsung</span>
-                                </button>
+                                </button> */}
 
                                 <button
                                     onClick={() =>
-                                        window.open(SHOPEE_URL, '_blank')
+                                        window.open(SHOPEE_URL, "_blank")
                                     }
                                     className="craft-shadow flex items-center justify-center gap-3 rounded-xl border-2 border-cacao-900 bg-white px-8 py-4 text-center font-bold text-cacao-900 transition-all hover:bg-craft-base active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
                                 >
@@ -332,7 +399,7 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                             </p>
                                             <h3 className="mt-0.5 font-editorial text-2xl font-bold text-white">
                                                 {featuredMenu?.name ??
-                                                    'Temukan menu favoritmu'}
+                                                    "Temukan menu favoritmu"}
                                             </h3>
                                         </div>
                                     </div>
@@ -341,7 +408,7 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                 {/* paper sticker */}
                                 <div className="craft-shadow-sm bg-white absolute -left-6 -top-6 hidden rotate-[-1.5deg] rounded-xl border-2 border-cacao-900 bg-banana-300 p-4 text-cacao-900 sm:block">
                                     <p className="font-editorial text-xs font-bold uppercase tracking-widest">
-                                        Cerita Melted
+                                        NEW
                                     </p>
                                     <p className="mt-0.5 text-sm font-extrabold">
                                         BEST SELLER
@@ -362,6 +429,97 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                     </div>
                 </section>
 
+                {/* ================= VOUCHER ================= */}
+                <section
+                    id="voucher"
+                    className="border-y-2 border-cacao-900 bg-banana-100 py-16"
+                >
+                    <div className="mx-auto grid max-w-7xl gap-8 px-4 sm:px-6 lg:grid-cols-[0.8fr_1.2fr] lg:px-8">
+                        <div className="grid content-start gap-3">
+                            <span className="w-fit rounded-md border border-cacao-900 bg-white px-3 py-1 text-xs font-bold uppercase tracking-widest text-cacao-700">
+                                Promo pelanggan
+                            </span>
+                            <h2 className="font-editorial text-3xl font-extrabold text-cacao-900 sm:text-4xl">
+                                Coba, nilai, lalu nikmati voucher
+                            </h2>
+                            <p className="text-sm leading-relaxed text-cacao-700">
+                                Minta voucher menggunakan nomor WhatsApp.
+                                Tunjukkan QR ke admin, lalu beri rating produk
+                                untuk mengaktifkan potongan belanja.
+                            </p>
+                        </div>
+
+                        {voucherCampaigns.length > 0 ? (
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                {voucherCampaigns.map((campaign) => (
+                                    <article
+                                        key={campaign.id}
+                                        className="craft-shadow grid content-start gap-3 rounded-2xl border-2 border-cacao-900 bg-white p-5"
+                                    >
+                                        <div>
+                                            <p className="text-xs font-bold uppercase tracking-widest text-cacao-500">
+                                                {campaign.name}
+                                            </p>
+                                            <p className="mt-1 font-editorial text-3xl font-black text-cacao-900">
+                                                {campaign.discount_type ===
+                                                "percentage"
+                                                    ? `${campaign.discount_value}%`
+                                                    : `Rp ${Number(campaign.discount_value).toLocaleString("id-ID")}`}
+                                            </p>
+                                            <p className="mt-1 text-xs text-cacao-600">
+                                                Potongan · minimal{" "}
+                                                {campaign.min_items} item
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                openVoucherModal(campaign.id)
+                                            }
+                                            className="rounded-xl border-2 border-cacao-900 bg-banana-400 px-4 py-3 text-sm font-bold text-cacao-900 transition-colors hover:bg-banana-500"
+                                        >
+                                            Minta voucher QR
+                                        </button>
+                                    </article>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="craft-shadow grid min-h-32 content-center rounded-2xl border-2 border-dashed border-cacao-900 bg-white p-6 text-center">
+                                <p className="font-editorial text-xl font-bold text-cacao-900">
+                                    Belum ada voucher aktif
+                                </p>
+                                <p className="mt-2 text-sm text-cacao-600">
+                                    Admin dapat membuat atau mengaktifkan
+                                    voucher dari menu Kelola Voucher.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </section>
+
+                {voucherCode && (
+                    <aside
+                        role="status"
+                        className="mx-auto mt-8 grid max-w-7xl gap-3 rounded-2xl border-2 border-emerald-800/30 bg-emerald-50 px-5 py-4 sm:grid-cols-[1fr_auto] sm:items-center sm:px-8"
+                    >
+                        <div>
+                            <p className="font-bold text-emerald-900">
+                                Evaluasi berhasil! Voucher siap digunakan.
+                            </p>
+                            <p className="mt-1 break-all font-mono text-sm text-emerald-800">
+                                {voucherCode}
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => openOrderModal()}
+                            className="rounded-xl border-2 border-emerald-900 bg-white px-4 py-2.5 text-sm font-bold text-emerald-900 hover:bg-emerald-100"
+                        >
+                            Pesan dengan voucher
+                        </button>
+                    </aside>
+                )}
+
                 {/* ================= CERITA ================= */}
                 <section
                     id="cerita"
@@ -370,14 +528,23 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                         <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-12">
                             <div className="space-y-4 lg:col-span-5">
-                                <div className="craft-shadow-gold rotate-[-1.5deg] rounded-2xl border-2 border-banana-400 bg-cacao-900 p-3">
+                                <div className="flex gap-2 craft-shadow-gold rotate-[-1.5deg] rounded-2xl border-2 border-banana-400 bg-cacao-900 p-3">
                                     <img
-                                        src="/assets/img/antar.jpeg"
+                                        src="/assets/img/mentai dimsum.jpg"
                                         alt="Persiapan menu"
-                                        className="h-72 w-full rounded-xl object-cover"
+                                        className="h-72 w-fit rounded-xl object-cover"
                                         onError={(e) => {
                                             (e.target as HTMLImageElement).src =
-                                                'https://placehold.co/600x600/140c09/fce48b?text=PROSES';
+                                                "https://placehold.co/600x600/140c09/fce48b?text=PROSES";
+                                        }}
+                                    />
+                                    <img
+                                        src="/assets/img/melted banana.jpeg"
+                                        alt="Persiapan menu"
+                                        className="h-72 w-52 rounded-xl object-cover"
+                                        onError={(e) => {
+                                            (e.target as HTMLImageElement).src =
+                                                "https://placehold.co/600x600/140c09/fce48b?text=PROSES";
                                         }}
                                     />
                                 </div>
@@ -389,17 +556,22 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                 </span>
 
                                 <h2 className="font-editorial text-3xl font-extrabold leading-tight text-white sm:text-4xl">
-                                    Dari mana ide ini berasal?
+                                    VISI & MISI VAMPIRE STAND
                                 </h2>
 
                                 <p className="text-base font-normal leading-relaxed text-craft-base">
-                                    Kami percaya perpaduan rasa yang pas membuat
-                                    setiap camilan lebih berkesan. Dari pilihan
-                                    manis dengan cokelat lumer hingga dimsum
-                                    gurih, setiap menu disiapkan untuk menemani
-                                    harimu.
+                                    VISI: Membuat konsumen merasakan pengalaman
+                                    menikmati camilan dengan kualitas rasa yang
+                                    enak, gurih, dan konsisten.
                                 </p>
 
+                                <p className="text-base font-normal leading-relaxed text-craft-base">
+                                    MISI: Menggunakan bahan-bahan berkualitas
+                                    tanpa mengurangi cita rasa, menjaga
+                                    konsistensi produk, serta mengutamakan
+                                    kualitas dan kepuasan konsumen dalam setiap
+                                    sajian.
+                                </p>
                                 <div className="grid grid-cols-1 gap-4 pt-2 sm:grid-cols-2">
                                     <div className="rounded-xl border border-cacao-700 bg-cacao-900/60 p-4">
                                         <i className="fa-solid fa-leaf mb-2 text-xl text-banana-400" />
@@ -470,11 +642,13 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                         onClick={() =>
                                             setActiveCategory(category)
                                         }
-                                        aria-pressed={activeCategory === category}
+                                        aria-pressed={
+                                            activeCategory === category
+                                        }
                                         className={`rounded-full border-2 px-4 py-2 text-sm font-bold transition-colors ${
                                             activeCategory === category
-                                                ? 'border-cacao-900 bg-cacao-900 text-banana-300'
-                                                : 'border-cacao-900/20 bg-white text-cacao-800 hover:border-cacao-900'
+                                                ? "border-cacao-900 bg-cacao-900 text-banana-300"
+                                                : "border-cacao-900/20 bg-white text-cacao-800 hover:border-cacao-900"
                                         }`}
                                     >
                                         {category}
@@ -509,12 +683,26 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                                     {item.name}
                                                 </h3>
                                                 <span className="shrink-0 rounded-md border border-cacao-900 bg-banana-100 px-2.5 py-1 font-bold text-cacao-900">
-                                                    Rp{' '}
+                                                    Rp{" "}
                                                     {Number(
                                                         item.price,
-                                                    ).toLocaleString('id-ID')}
+                                                    ).toLocaleString("id-ID")}
                                                 </span>
                                             </div>
+                                            {item.averageRating !== null && (
+                                                <p className="mt-2 flex items-center gap-2 text-sm">
+                                                    <span
+                                                        aria-label={`Rating ${item.averageRating} dari 5`}
+                                                        className="font-bold text-amber-700"
+                                                    >
+                                                        ★ {item.averageRating}
+                                                    </span>
+                                                    <span className="text-xs text-cacao-600">
+                                                        ({item.ratingCount}{" "}
+                                                        rating)
+                                                    </span>
+                                                </p>
+                                            )}
                                             {item.description && (
                                                 <p className="mt-3 flex-1 text-sm leading-relaxed text-cacao-700">
                                                     {item.description}
@@ -556,22 +744,22 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                         <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
                             {[
                                 {
-                                    num: '1',
-                                    title: 'Disiapkan Saat Dipesan',
-                                    desc: 'Menu disiapkan setelah pesanan masuk untuk menjaga kehangatan dan kualitas saat diterima.',
-                                    tilt: 'rotate-[-1.5deg]',
+                                    num: "1",
+                                    title: "Disiapkan Saat Dipesan",
+                                    desc: "Menu disiapkan setelah pesanan masuk untuk menjaga kehangatan dan kualitas saat diterima.",
+                                    tilt: "rotate-[-1.5deg]",
                                 },
                                 {
-                                    num: '2',
-                                    title: 'Bahan Berkualitas',
-                                    desc: 'Bahan dipilih dengan cermat dan diolah secara higienis untuk setiap menu.',
-                                    tilt: '',
+                                    num: "2",
+                                    title: "Bahan Berkualitas",
+                                    desc: "Bahan dipilih dengan cermat dan diolah secara higienis untuk setiap menu.",
+                                    tilt: "",
                                 },
                                 {
-                                    num: '3',
-                                    title: 'Kemasan Aman',
-                                    desc: 'Kemasan food-grade membantu menjaga kualitas menu selama perjalanan.',
-                                    tilt: 'rotate-[1.5deg]',
+                                    num: "3",
+                                    title: "Kemasan Aman",
+                                    desc: "Kemasan food-grade membantu menjaga kualitas menu selama perjalanan.",
+                                    tilt: "rotate-[1.5deg]",
                                 },
                             ].map((f) => (
                                 <div
@@ -619,9 +807,9 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                 />
                                 {outlets.map((outlet, index) => {
                                     const stairOffsets = [
-                                        'lg:translate-y-0',
-                                        'lg:translate-y-12',
-                                        'lg:translate-y-24',
+                                        "lg:translate-y-0",
+                                        "lg:translate-y-12",
+                                        "lg:translate-y-24",
                                     ];
 
                                     return (
@@ -630,16 +818,15 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                             className={`craft-shadow relative rounded-2xl border-2 border-cacao-900 bg-white p-6 transition-transform duration-300 hover:-translate-y-1 ${stairOffsets[index % stairOffsets.length]}`}
                                         >
                                             <div className="mb-5 flex items-start justify-between gap-4">
-                                                
                                                 <span className="rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-800">
                                                     Aktif
                                                 </span>
                                             </div>
                                             <p className="text-xs font-bold uppercase tracking-[0.2em] text-cacao-500">
-                                                Lokasi{' '}
+                                                Lokasi{" "}
                                                 {String(index + 1).padStart(
                                                     2,
-                                                    '0',
+                                                    "0",
                                                 )}
                                             </p>
                                             <h3 className="mt-2 font-editorial text-xl font-extrabold text-cacao-900">
@@ -699,8 +886,8 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                     key={comment.id}
                                     className={`craft-shadow relative rounded-2xl border-2 border-cacao-900 p-6 ${
                                         index % 2 === 0
-                                            ? 'bg-white'
-                                            : 'bg-banana-100'
+                                            ? "bg-white"
+                                            : "bg-banana-100"
                                     }`}
                                 >
                                     <div
@@ -710,6 +897,17 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                     <p className="text-sm font-medium italic leading-relaxed text-cacao-800 sm:text-base">
                                         “{comment.comment}”
                                     </p>
+                                    {comment.rating !== null && (
+                                        <p
+                                            className="mt-3 text-amber-700"
+                                            aria-label={`Rating ${comment.rating} dari 5`}
+                                        >
+                                            {"★".repeat(comment.rating)}
+                                            <span className="ml-2 text-xs font-medium text-cacao-600">
+                                                {comment.menuName}
+                                            </span>
+                                        </p>
+                                    )}
                                     <div className="mt-4 border-t border-cacao-800/10 pt-3">
                                         <p className="text-xs font-bold text-cacao-900">
                                             {comment.name}
@@ -756,9 +954,9 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                 </p>
                                 <div className="flex items-center gap-3 pt-2">
                                     {[
-                                        'fa-instagram',
-                                        'fa-tiktok',
-                                        'fa-whatsapp',
+                                        "fa-instagram",
+                                        "fa-tiktok",
+                                        "fa-whatsapp",
                                     ].map((icon) => (
                                         <a
                                             key={icon}
@@ -792,7 +990,8 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                             >
                                                 <i className="fa-solid fa-location-dot mt-1 text-banana-400" />
                                                 <span>
-                                                    {outlet.name}: {outlet.address}
+                                                    {outlet.name}:{" "}
+                                                    {outlet.address}
                                                 </span>
                                             </p>
                                         ))
@@ -823,6 +1022,81 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                 </footer>
 
                 {/* ================= ORDER MODAL ================= */}
+                {voucherModalOpen && (
+                    <div
+                        className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-cacao-900/80 p-4 backdrop-blur-sm"
+                        onClick={(event) => {
+                            if (event.target === event.currentTarget) {
+                                setVoucherModalOpen(false);
+                            }
+                        }}
+                    >
+                        <section className="craft-shadow relative w-full max-w-md rounded-2xl border-2 border-cacao-900 bg-craft-light p-6 sm:p-8">
+                            <button
+                                type="button"
+                                onClick={() => setVoucherModalOpen(false)}
+                                className="absolute right-4 top-4 flex size-8 items-center justify-center rounded-xl bg-cacao-800 text-white transition-colors hover:bg-cacao-900"
+                                aria-label="Tutup"
+                            >
+                                <i className="fa-solid fa-xmark" />
+                            </button>
+                            <h2 className="pr-10 font-editorial text-2xl font-extrabold text-cacao-900">
+                                Minta voucher QR
+                            </h2>
+                            <p className="mt-2 text-sm leading-relaxed text-cacao-700">
+                                Masukkan nomor WhatsApp aktif. Satu nomor hanya
+                                dapat memperoleh satu voucher untuk promo ini.
+                            </p>
+                            <form
+                                onSubmit={submitVoucherRequest}
+                                className="mt-6 grid gap-4"
+                            >
+                                <label
+                                    htmlFor="voucher-whatsapp"
+                                    className="grid gap-1.5 text-sm font-bold text-cacao-900"
+                                >
+                                    Nomor WhatsApp
+                                    <input
+                                        id="voucher-whatsapp"
+                                        type="tel"
+                                        required
+                                        maxLength={20}
+                                        autoComplete="tel"
+                                        value={voucherForm.data.whatsapp_number}
+                                        onChange={(event) =>
+                                            voucherForm.setData(
+                                                "whatsapp_number",
+                                                event.target.value,
+                                            )
+                                        }
+                                        placeholder="Contoh: 081234567890"
+                                        className="w-full rounded-xl border-2 border-cacao-900 bg-white px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-banana-500"
+                                    />
+                                </label>
+                                {voucherForm.errors.whatsapp_number && (
+                                    <p className="text-sm font-semibold text-red-700">
+                                        {voucherForm.errors.whatsapp_number}
+                                    </p>
+                                )}
+                                {voucherForm.errors.voucher_campaign_id && (
+                                    <p className="text-sm font-semibold text-red-700">
+                                        {voucherForm.errors.voucher_campaign_id}
+                                    </p>
+                                )}
+                                <button
+                                    type="submit"
+                                    disabled={voucherForm.processing}
+                                    className="craft-shadow rounded-xl border-2 border-cacao-900 bg-banana-400 px-4 py-3 text-sm font-bold text-cacao-900 transition-colors hover:bg-banana-500 disabled:opacity-60"
+                                >
+                                    {voucherForm.processing
+                                        ? "Membuat voucher..."
+                                        : "Buat QR voucher"}
+                                </button>
+                            </form>
+                        </section>
+                    </div>
+                )}
+
                 {modalOpen && (
                     <div
                         className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-cacao-900/80 p-4 backdrop-blur-sm"
@@ -832,7 +1106,7 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                             }
                         }}
                     >
-                        <div className="craft-shadow relative w-full max-w-lg rounded-2xl border-2 border-cacao-900 bg-craft-light p-6 transition-all sm:p-8">
+                        <div className="craft-shadow relative bg-white w-full max-w-lg rounded-2xl border-2 border-cacao-900 bg-craft-light p-6 transition-all sm:p-8">
                             <button
                                 onClick={() => setModalOpen(false)}
                                 className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-xl bg-cacao-800 text-white transition-colors hover:bg-cacao-900"
@@ -855,10 +1129,7 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                 </div>
                             </div>
 
-                            <form
-                                onSubmit={submitOrder}
-                                className="space-y-4"
-                            >
+                            <form onSubmit={submitOrder} className="space-y-4">
                                 <div>
                                     <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-cacao-900">
                                         Nama Pemesan
@@ -868,8 +1139,12 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                         required
                                         maxLength={120}
                                         value={form.data.customer_name}
-                                        onChange={(e) => form.setData('customer_name', e.target.value)}
-                                        placeholder="Contoh: Budi Santoso"
+                                        onChange={(e) =>
+                                            form.setData(
+                                                "customer_name",
+                                                e.target.value,
+                                            )
+                                        }
                                         className="w-full rounded-xl border-2 border-cacao-900 px-4 py-3 text-sm font-medium focus:bg-white focus:outline-none"
                                     />
                                     {form.errors.customer_name && (
@@ -888,8 +1163,13 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                         required
                                         maxLength={20}
                                         value={form.data.whatsapp_number}
-                                        onChange={(e) => form.setData('whatsapp_number', e.target.value)}
-                                        placeholder="Contoh: 081234567890"
+                                        onChange={(e) =>
+                                            form.setData(
+                                                "whatsapp_number",
+                                                e.target.value,
+                                            )
+                                        }
+                                        placeholder="Contoh: 081xxxx"
                                         className="w-full rounded-xl border-2 border-cacao-900 px-4 py-3 text-sm font-medium focus:bg-white focus:outline-none"
                                     />
                                     {form.errors.whatsapp_number && (
@@ -905,19 +1185,27 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                     </label>
                                     <select
                                         required
-                                        value={selectedItem?.id ?? ''}
+                                        value={selectedItem?.id ?? ""}
                                         onChange={(e) => {
-                                            const menuId = Number(e.target.value);
-                                            form.setData('items', [{ menu_id: menuId, quantity: 1 }]);
+                                            const menuId = Number(
+                                                e.target.value,
+                                            );
+                                            form.setData("items", [
+                                                {
+                                                    menu_id: menuId,
+                                                    quantity: 1,
+                                                },
+                                            ]);
                                         }}
                                         className="w-full rounded-xl border-2 border-cacao-900 bg-white px-4 py-3 text-sm font-medium focus:outline-none"
                                     >
                                         {menuItems.map((m) => (
-                                            <option
-                                                key={m.id}
-                                                value={m.id}
-                                            >
-                                                {m.name} (Rp {Number(m.price).toLocaleString('id-ID')})
+                                            <option key={m.id} value={m.id}>
+                                                {m.name} (Rp{" "}
+                                                {Number(m.price).toLocaleString(
+                                                    "id-ID",
+                                                )}
+                                                )
                                             </option>
                                         ))}
                                     </select>
@@ -927,9 +1215,9 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                         </p>
                                     )}
                                 </div>
-                                {form.errors['items.0.quantity'] && (
+                                {form.errors["items.0.quantity"] && (
                                     <p className="text-xs font-semibold text-red-700">
-                                        {form.errors['items.0.quantity']}
+                                        {form.errors["items.0.quantity"]}
                                     </p>
                                 )}
 
@@ -967,14 +1255,20 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                         </label>
                                         <select
                                             value={form.data.delivery_method}
-                                            onChange={(e) => form.setData('delivery_method', e.target.value)}
+                                            onChange={(e) =>
+                                                form.setData(
+                                                    "delivery_method",
+                                                    e.target.value,
+                                                )
+                                            }
                                             className="w-full rounded-xl border-2 border-cacao-900 bg-white px-4 py-3 text-sm font-medium focus:outline-none"
                                         >
                                             <option value="Takeaway / Ambil Sendiri">
                                                 Ambil di Outlet
                                             </option>
-                                            <option value="Delivery Ojol (Gojek/Grab)">
-                                                Kirim
+                                            <option value="Kampus Universitas Harkat Negeri Tegal">
+                                                Universitas Harkat Negeri Tegal
+                                                (Kampus)
                                             </option>
                                         </select>
                                     </div>
@@ -988,7 +1282,12 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                         rows={2}
                                         maxLength={1000}
                                         value={form.data.notes}
-                                        onChange={(e) => form.setData('notes', e.target.value)}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                "notes",
+                                                e.target.value,
+                                            )
+                                        }
                                         placeholder="Contoh: saus dipisah, tanpa topping, dll."
                                         className="w-full rounded-xl border-2 border-cacao-900 px-4 py-3 text-sm font-medium focus:bg-white focus:outline-none"
                                     />
@@ -999,12 +1298,46 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                     </p>
                                 )}
 
+                                <div>
+                                    <label
+                                        htmlFor="order-voucher-code"
+                                        className="mb-1 block text-xs font-bold uppercase tracking-wider text-cacao-900"
+                                    >
+                                        Kode Voucher (Opsional)
+                                    </label>
+                                    <input
+                                        id="order-voucher-code"
+                                        type="text"
+                                        maxLength={64}
+                                        value={form.data.voucher_code}
+                                        onChange={(event) =>
+                                            form.setData(
+                                                "voucher_code",
+                                                event.target.value.trim(),
+                                            )
+                                        }
+                                        className="w-full rounded-xl border-2 border-cacao-900 bg-white px-4 py-3 font-mono text-sm focus:outline-none"
+                                    />
+                                    {form.errors.voucher_code && (
+                                        <p className="mt-1 text-xs font-semibold text-red-700">
+                                            {form.errors.voucher_code}
+                                        </p>
+                                    )}
+                                    {form.data.voucher_code && (
+                                        <p className="mt-1 text-xs text-cacao-600">
+                                            Voucher hanya dapat dipakai setelah
+                                            evaluasi, dengan WhatsApp yang sama
+                                            dan jumlah item sesuai syarat promo.
+                                        </p>
+                                    )}
+                                </div>
+
                                 <div className="flex items-center justify-between rounded-xl border-2 border-cacao-900 bg-banana-300 p-4">
                                     <span className="text-xs font-bold uppercase text-cacao-900">
-                                        Total Estimasi:
+                                        Subtotal Estimasi:
                                     </span>
                                     <span className="font-editorial text-2xl font-black text-cacao-900">
-                                        Rp {total.toLocaleString('id-ID')}
+                                        Rp {total.toLocaleString("id-ID")}
                                     </span>
                                 </div>
 
@@ -1014,10 +1347,16 @@ export default function LandingPage({ menuItems, comments, outlets }: PageProps)
                                     className="craft-shadow flex w-full items-center justify-center gap-2 rounded-xl border-2 border-cacao-900 bg-emerald-600 py-3.5 font-bold text-white transition-all hover:bg-emerald-700 active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
                                 >
                                     <i className="fa-brands fa-whatsapp text-lg" />
-                                    <span>{form.processing ? 'Menyimpan pesanan...' : 'Simpan & lanjut ke WhatsApp'}</span>
+                                    <span>
+                                        {form.processing
+                                            ? "Menyimpan pesanan..."
+                                            : "Simpan & lanjut ke WhatsApp"}
+                                    </span>
                                 </button>
                                 <p className="text-center text-xs text-cacao-600">
-                                    Pesanan dicatat di sistem sebelum WhatsApp dibuka. Admin akan mengonfirmasi ketersediaannya.
+                                    Pesanan dicatat di sistem sebelum WhatsApp
+                                    dibuka. Admin akan mengonfirmasi
+                                    ketersediaannya.
                                 </p>
                             </form>
                         </div>

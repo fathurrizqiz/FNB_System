@@ -45,6 +45,7 @@ class HandleInertiaRequests extends Middleware
                 'success' => fn (): ?string => $request->session()->get('success'),
                 'error' => fn (): ?string => $request->session()->get('error'),
                 'whatsappUrl' => fn (): ?string => $request->session()->get('whatsapp_url'),
+                'voucherCode' => fn (): ?string => $request->session()->get('voucher_code'),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];

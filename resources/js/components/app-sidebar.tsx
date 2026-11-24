@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import { LayoutGrid, MapPin } from 'lucide-react';
+import { Gift, LayoutGrid, MapPin } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
 import { index as outletsIndex } from '@/routes/admin/outlets';
+import { index as vouchersIndex } from '@/routes/admin/vouchers';
 import type { NavItem } from '@/types';
 
 const mainNavItems: NavItem[] = [
@@ -32,6 +33,11 @@ const mainNavItems: NavItem[] = [
         title: 'Management Outlet',
         href: outletsIndex.url(),
         icon: MapPin,
+    },
+    {
+        title: 'Kelola Voucher',
+        href: vouchersIndex.url(),
+        icon: Gift,
     },
 ];
 

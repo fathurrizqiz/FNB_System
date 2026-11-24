@@ -3,10 +3,23 @@ import type { FormEvent } from 'react';
 import { home } from '@/routes';
 import { store as submitEvaluation } from '@/routes/evaluasi';
 
-export default function EvaluasiPage() {
+interface MenuOption {
+    id: number;
+    name: string;
+}
+
+interface PageProps {
+    voucherToken: string | null;
+    menus: MenuOption[];
+}
+
+export default function EvaluasiPage({ voucherToken, menus }: PageProps) {
     const form = useForm({
         name: '',
         comment: '',
+        voucher_token: voucherToken ?? '',
+        menu_id: '' as number | '',
+        rating: '' as number | '',
     });
 
     const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -40,8 +53,9 @@ export default function EvaluasiPage() {
                                 Bagikan pengalamanmu
                             </h1>
                             <p className="text-cacao-700 mt-2 text-sm leading-relaxed">
-                                Ceritakan pendapatmu tentang Melted Banana.
-                                Komentarmu akan ditampilkan di halaman utama.
+                                {voucherToken
+                                    ? 'Beri rating untuk salah satu produk sebagai langkah terakhir sebelum voucher dapat digunakan. Komentar bersifat opsional.'
+                                    : 'Ceritakan pendapatmu tentang Melted Banana. Komentarmu akan ditampilkan di halaman utama.'}
                             </p>
                         </div>
 
@@ -55,6 +69,102 @@ export default function EvaluasiPage() {
                         )}
 
                         <form onSubmit={submit} className="grid gap-6">
+                            {voucherToken && (
+                                <>
+                                    <div className="grid gap-2">
+                                        <label
+                                            htmlFor="menu_id"
+                                            className="text-cacao-900 text-sm font-bold"
+                                        >
+                                            Produk yang dinilai
+                                        </label>
+                                        <select
+                                            id="menu_id"
+                                            required
+                                            value={form.data.menu_id}
+                                            onChange={(event) =>
+                                                form.setData(
+                                                    'menu_id',
+                                                    Number(event.target.value),
+                                                )
+                                            }
+                                            aria-invalid={Boolean(
+                                                form.errors.menu_id,
+                                            )}
+                                            className="border-cacao-900 bg-craft-light text-cacao-900 focus:ring-banana-500 w-full rounded-xl border-2 px-4 py-3 text-sm transition outline-none focus:ring-2"
+                                        >
+                                            <option value="" disabled>
+                                                Pilih produk
+                                            </option>
+                                            {menus.map((menu) => (
+                                                <option
+                                                    key={menu.id}
+                                                    value={menu.id}
+                                                >
+                                                    {menu.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        {form.errors.menu_id && (
+                                            <p className="text-sm font-medium text-red-700">
+                                                {form.errors.menu_id}
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    <fieldset className="grid gap-2">
+                                        <legend className="text-cacao-900 text-sm font-bold">
+                                            Rating produk
+                                        </legend>
+                                        <div
+                                            className="flex items-center gap-2"
+                                            role="radiogroup"
+                                            aria-label="Rating produk 1 sampai 5"
+                                        >
+                                            {[1, 2, 3, 4, 5].map((rating) => (
+                                                <label
+                                                    key={rating}
+                                                    className="cursor-pointer"
+                                                >
+                                                    <input
+                                                        className="peer sr-only"
+                                                        type="radio"
+                                                        name="rating"
+                                                        value={rating}
+                                                        checked={
+                                                            form.data.rating ===
+                                                            rating
+                                                        }
+                                                        onChange={() =>
+                                                            form.setData(
+                                                                'rating',
+                                                                rating,
+                                                            )
+                                                        }
+                                                    />
+                                                    <span
+                                                        aria-label={`${rating} bintang`}
+                                                        className={`inline-flex size-11 items-center justify-center rounded-lg border-2 text-xl transition peer-focus-visible:ring-2 peer-focus-visible:ring-banana-500 ${
+                                                            form.data.rating ===
+                                                            rating
+                                                                ? 'border-cacao-900 bg-banana-300 text-cacao-900'
+                                                                : 'border-cacao-900/20 bg-white text-cacao-400 hover:border-cacao-900'
+                                                        }`}
+                                                    >
+                                                        ★
+                                                    </span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                        {form.errors.rating && (
+                                            <p className="text-sm font-medium text-red-700">
+                                                {form.errors.rating}
+                                            </p>
+                                        )}
+                                    </fieldset>
+                                </>
+                            )}
+
                             <div className="grid gap-2">
                                 <label
                                     htmlFor="name"
@@ -102,7 +212,7 @@ export default function EvaluasiPage() {
                                 <textarea
                                     id="comment"
                                     name="comment"
-                                    required
+                                    required={!voucherToken}
                                     rows={6}
                                     maxLength={1000}
                                     value={form.data.comment}
@@ -119,7 +229,11 @@ export default function EvaluasiPage() {
                                             : undefined
                                     }
                                     className="border-cacao-900 bg-craft-light text-cacao-900 focus:ring-banana-500 w-full resize-y rounded-xl border-2 px-4 py-3 text-sm leading-relaxed transition outline-none focus:ring-2"
-                                    placeholder="Tulis komentar kamu di sini..."
+                                    placeholder={
+                                        voucherToken
+                                            ? 'Komentar (opsional)'
+                                            : 'Tulis komentar kamu di sini...'
+                                    }
                                 />
                                 <div className="flex items-start justify-between gap-4">
                                     {form.errors.comment ? (
@@ -146,12 +260,14 @@ export default function EvaluasiPage() {
                                 {form.processing ? (
                                     <>
                                         <i className="fa-solid fa-spinner fa-spin" />
-                                        Mengirim komentar...
+                                        Menyimpan evaluasi...
                                     </>
                                 ) : (
                                     <>
                                         <i className="fa-regular fa-paper-plane" />
-                                        Kirim Komentar
+                                        {voucherToken
+                                            ? 'Simpan Evaluasi & Aktifkan Voucher'
+                                            : 'Kirim Komentar'}
                                     </>
                                 )}
                             </button>

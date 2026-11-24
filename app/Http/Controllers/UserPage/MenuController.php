@@ -5,6 +5,7 @@ namespace App\Http\Controllers\UserPage;
 use App\Http\Controllers\Controller;
 use App\Models\MenuModel;
 use App\Models\OrderMenu;
+use App\Models\Voucher;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -30,6 +31,7 @@ class MenuController extends Controller
             'whatsapp_number' => ['required', 'string', 'max:20', 'regex:/^(?=.*\\d)[0-9+()\\s-]{8,20}$/'],
             'delivery_method' => ['nullable', 'string', 'in:Takeaway / Ambil Sendiri,Delivery Ojol (Gojek/Grab)'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'voucher_code' => ['nullable', 'string', 'size:64'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.menu_id' => ['required', 'integer', 'distinct', 'exists:Menu,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:100'],
@@ -41,8 +43,14 @@ class MenuController extends Controller
             'items.*.quantity.max' => 'Jumlah setiap menu maksimal 100 porsi.',
         ]);
 
+        $adminWhatsAppNumber = (string) preg_replace('/\D+/', '', (string) config('services.whatsapp.number'));
+
+        if ($adminWhatsAppNumber === '') {
+            throw new \RuntimeException('Nomor WhatsApp admin belum dikonfigurasi.');
+        }
+
         $orderNumber = 'MB-'.Str::upper((string) Str::ulid());
-        $orderLines = DB::transaction(function () use ($validated, $orderNumber): array {
+        $submission = DB::transaction(function () use ($validated, $orderNumber): array {
             $menuIds = collect($validated['items'])->pluck('menu_id')->unique()->values();
             $menus = MenuModel::query()
                 ->whereKey($menuIds)
@@ -56,9 +64,52 @@ class MenuController extends Controller
                 ]);
             }
 
+            $subtotal = collect($validated['items'])->sum(
+                fn (array $item): float => (float) $menus->get($item['menu_id'])->price * $item['quantity'],
+            );
+            $totalQuantity = collect($validated['items'])->sum('quantity');
+            $voucher = null;
+            $discountAmount = 0;
+
+            if (! empty($validated['voucher_code'])) {
+                $voucher = Voucher::query()
+                    ->with('campaign')
+                    ->where('token_hash', hash('sha256', $validated['voucher_code']))
+                    ->lockForUpdate()
+                    ->first();
+
+                if (
+                    ! $voucher
+                    || $voucher->status !== 'evaluated'
+                    || ! $voucher->campaign?->is_active
+                ) {
+                    throw ValidationException::withMessages([
+                        'voucher_code' => 'Voucher tidak valid, belum dievaluasi, atau sudah digunakan.',
+                    ]);
+                }
+
+                if ($voucher->customer_phone !== Voucher::normalizePhone($validated['whatsapp_number'])) {
+                    throw ValidationException::withMessages([
+                        'voucher_code' => 'Nomor WhatsApp pesanan harus sama dengan nomor pada voucher.',
+                    ]);
+                }
+
+                if ($totalQuantity < $voucher->campaign->min_items) {
+                    throw ValidationException::withMessages([
+                        'voucher_code' => 'Jumlah item pesanan belum memenuhi syarat minimal voucher.',
+                    ]);
+                }
+
+                $discountAmount = $voucher->campaign->discount_type === 'percentage'
+                    ? (int) round($subtotal * (float) $voucher->campaign->discount_value / 100)
+                    : min((int) $voucher->campaign->discount_value, (int) $subtotal);
+
+                $voucher->update(['status' => 'reserved']);
+            }
+
             $orderLines = [];
 
-            foreach ($validated['items'] as $item) {
+            foreach ($validated['items'] as $index => $item) {
                 $menu = $menus->get($item['menu_id']);
 
                 if (! $menu instanceof MenuModel) {
@@ -77,6 +128,8 @@ class MenuController extends Controller
                     'unit_price' => $menu->price,
                     'order_number' => $orderNumber,
                     'status' => 'pending',
+                    'voucher_id' => $index === 0 ? $voucher?->id : null,
+                    'discount_amount' => $index === 0 ? $discountAmount : 0,
                 ]);
 
                 $orderLines[] = [
@@ -85,12 +138,18 @@ class MenuController extends Controller
                 ];
             }
 
-            return $orderLines;
+            return [
+                'orderLines' => $orderLines,
+                'subtotal' => $subtotal,
+                'discountAmount' => $discountAmount,
+                'campaignName' => $voucher?->campaign?->name,
+            ];
         });
 
-        $total = collect($orderLines)->sum(
-            fn (array $line): float => (float) $line['order']->unit_price * $line['order']->quantity,
-        );
+        $orderLines = $submission['orderLines'];
+        $subtotal = $submission['subtotal'];
+        $discountAmount = $submission['discountAmount'];
+        $total = max(0, $subtotal - $discountAmount);
 
         $message = collect([
             "Halo Melted Banana, saya ingin mengajukan pesanan #{$orderNumber}:",
@@ -104,16 +163,13 @@ class MenuController extends Controller
             ),
             '*Metode:* '.($validated['delivery_method'] ?? 'Takeaway / Ambil Sendiri'),
             isset($validated['notes']) && $validated['notes'] !== '' ? '*Catatan:* '.$validated['notes'] : null,
+            '*Subtotal:* Rp '.number_format($subtotal, 0, ',', '.'),
+            $submission['campaignName'] !== null ? '*Voucher:* '.$submission['campaignName'] : null,
+            $discountAmount > 0 ? '*Potongan:* Rp '.number_format($discountAmount, 0, ',', '.') : null,
             '*Total estimasi:* Rp '.number_format($total, 0, ',', '.'),
             '',
             'Mohon konfirmasi ketersediaan dan pesanan saya. Terima kasih!',
         ])->filter()->implode("\n");
-
-        $adminWhatsAppNumber = (string) preg_replace('/\D+/', '', (string) config('services.whatsapp.number'));
-
-        if ($adminWhatsAppNumber === '') {
-            throw new \RuntimeException('Nomor WhatsApp admin belum dikonfigurasi.');
-        }
 
         $whatsappUrl = 'https://wa.me/'.$adminWhatsAppNumber.'?text='.rawurlencode($message);
 
